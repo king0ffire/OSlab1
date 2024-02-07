@@ -7,11 +7,12 @@
 
 using namespace std;
 
-#define TOKENMAX 30
-#define LINEMAX 4000
+#define TOKENMAX 100    //2^30 would be 10 char. if any symbol or number is longer then this TOKENMAX, it will cause error
+#define LINEMAX 4000    //cannot handle if there are too many spaces in a line
 #define SYMBOLMAX 16
 #define SYMBOLSMAX 256
 #define WORDSMAX 512   //number of instruction 
+#define DEFUSEMAX 16
 #include <map>
 
 class symbol
@@ -20,7 +21,7 @@ public:
 	symbol();
 	~symbol();
 	char name[SYMBOLMAX];
-	int relativeadd;
+	int absadd;
 private:
 
 };
@@ -28,7 +29,7 @@ private:
 symbol::symbol()
 {
 	memset(name, 0, sizeof(name));
-	relativeadd = 0;
+	absadd = 0;
 }
 
 symbol::~symbol()
@@ -62,7 +63,7 @@ tokeninfo::~tokeninfo()
 {
 }
 
-void __parseerror(int errcode) {
+void __parseerror(int errcode,int linenum, int lineoffset) {
 	static char* errstr[] = {
 	"NUM_EXPECTED", // Number expect, anything >= 2^30 is not a number either
 	"SYM_EXPECTED", // Symbol Expected
@@ -72,7 +73,7 @@ void __parseerror(int errcode) {
 	"TOO_MANY_USE_IN_MODULE", // > 16
 	"TOO_MANY_INSTR", // total num_instr exceeds memory size (512)
 	};
-	//printf("Parse Error line %d offset %d: %s\n", linenum, lineoffset, errstr[errcode]);
+	printf("Parse Error line %d offset %d: %s\n", linenum, lineoffset, errstr[errcode]);
 	exit(1);
 }
 
@@ -148,13 +149,16 @@ int readInt(tokeninfo* tok)
 {
 	int count = 0;
 	int sum = 0;
+	if (tok == NULL)throw"NUMBEREXPECTED";
 	while (tok->token[count] != '\0')
 	{
 		if (!(tok->token[count] <= '9' && tok->token[count] >= '0'))
 		{
-			//rule 1 syntax error
-			throw "SYNTAXERROR";
+			throw "NUMBEREXPECTED";
 			//return -1;
+		}
+		if (sum > 214748364 || (sum == 214748364 && int(tok->token[count] - '0') > 7)) {
+			throw "NUMBEREXPECTED";
 		}
 		sum = sum * 10 + int(tok->token[count] - '0');
 		count++;
@@ -165,14 +169,14 @@ int readInt(tokeninfo* tok)
 char* readSymbol(tokeninfo* tok)
 {
 	int count = 0;
+	if (tok == NULL)throw"SYMBOLEXPECTED";
 	char* tokencopy = new char[SYMBOLMAX];
 	while (tok->token[count] != '\0') {
 		if (count == 0)
 		{
 			if (!((tok->token[count] >= 'a' && tok->token[count] <= 'z') || (tok->token[count] >= 'A' && tok->token[count] <= 'Z')))
 			{
-				//rule 1 syntax error
-				throw "SYNTAXERROR";
+				throw "SYMBOLEXPECTED";
 				//return NULL;
 			}
 		}
@@ -180,15 +184,14 @@ char* readSymbol(tokeninfo* tok)
 		{
 			if (!((tok->token[count] >= 'a' && tok->token[count] <= 'z') || (tok->token[count] >= 'A' && tok->token[count] <= 'Z') || (tok->token[count] >= '0' && tok->token[count] <= '9')))
 			{
-				//rule 1 syntax error
-				throw "SYNTAXERROR";
+				throw "SYMBOLEXPECTED";
 				//return NULL;
 			}
 		}
 		if (count >= SYMBOLMAX)
 		{
-			//errormessage here
-			return NULL;
+			throw "SYMBOLTOOLONG";
+			//return NULL;
 		}
 		count++;
 	}
@@ -199,11 +202,7 @@ char* readSymbol(tokeninfo* tok)
 char* readMARIE(tokeninfo* tok)
 {
 	char* tokencopy = new char[SYMBOLMAX];   //used for indicating mode, but with 17 size.
-	if (tok == NULL)
-	{
-		//end of file encountered
-		return NULL;
-	}
+	if (tok == NULL)throw"MARIEEXPECTED";
 	strcpy(tokencopy, tok->token); //strcpy stop at \0
 	if (tok->token[1] == '\0')
 	{
@@ -226,7 +225,7 @@ char* readMARIE(tokeninfo* tok)
 			break;
 		}
 	}
-	throw "SYNTAXERROR";
+	throw "MARIEEXPECTED";
 	//return NULL;
 }
 
@@ -235,21 +234,20 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 	int linenum = 1;
 	int lineoff = 1;
 	int modulecount = 0;
-	cout << "Symbol Table" << endl;
+	
 	while (true)  //one loop for one module.
 	{
 		try
 		{
-
-
 			//single token process begin
 			tok = getToken(file, tok);    //This is token
+			linenum = tok->linenum;
+			lineoff = tok->lineoffset-tok->tokenlength;
 			if (tok == NULL)break;
 			int defcount = readInt(tok);  // This is not a token. Storing a single attribute is allowed.
-			if (defcount < 0)
+			if (defcount >= DEFUSEMAX)
 			{
-				//syntax error
-				exit(2);
+				throw "DEF";
 			}
 			//single token process end
 
@@ -258,30 +256,55 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 				//single token process begin
 				tok = getToken(file, tok);
 				char* sym = readSymbol(tok);
-				//run some check
-				////single token process end
+				linenum = tok->linenum;
+				lineoff = tok->lineoffset - tok->tokenlength;
+				bool rule2 = false;
+				for (int i = 0; i < symbol_table.size(); i++)//rule 2
+				{
+					if (!strcmp(symbol_table[i]->name, sym))
+					{
+						rule2 = true;
+						break;
+					}
+				}
+				if (rule2 == true)
+				{
+
+				}
+				//single token process end
 
 				//single token process begin
 				tok = getToken(file, tok);
 				int val = readInt(tok);
+				linenum = tok->linenum;
+				lineoff = tok->lineoffset - tok->tokenlength;
 				//run some check
 				if (true) {//condition to be added
 					symbol* temp = new symbol();
 					strcpy(temp->name, sym);
-					temp->relativeadd = val + module_table[modulecount];
+					temp->absadd = val + module_table[modulecount];
 					symbol_table.push_back(temp);                             //this would change in pass2
-					cout << temp->name << "=" << temp->relativeadd << endl;
+					
 				}
 				//single token process end
 			}
 			//single token process begin
 			tok = getToken(file, tok);
 			int usecount = readInt(tok);
+			linenum = tok->linenum;
+			lineoff = tok->lineoffset - tok->tokenlength;
+			if (usecount >= DEFUSEMAX)
+			{
+				throw "USE";
+			}
+			//single token process end
 
 			for (int i = 0; i < usecount; i++) {
 				//single token process begin
 				tok = getToken(file, tok);
 				char* sym = readSymbol(tok);
+				linenum = tok->linenum;
+				lineoff = tok->lineoffset - tok->tokenlength;
 				//we don’t do anything here this would change in pass2 
 				//single token process end
 			}
@@ -289,6 +312,12 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 			//single token process begin
 			tok = getToken(file, tok);
 			int instcount = readInt(tok);
+			linenum = tok->linenum;
+			lineoff = tok->lineoffset - tok->tokenlength;
+			if (usecount >= WORDSMAX)
+			{
+				throw "WORDS";
+			}
 			module_table[modulecount + 1] = module_table[modulecount] + instcount;  //will always store the base of "next" module.
 			//single token process end
 
@@ -296,26 +325,57 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 				//single token process begin
 				tok = getToken(file, tok);
 				char* addressmode = readMARIE(tok);
+				linenum = tok->linenum;
+				lineoff = tok->lineoffset - tok->tokenlength;
 				//single token process end
 
 				//single token process begin
 				tok = getToken(file, tok);
 				int operand = readInt(tok);
+				linenum = tok->linenum;
+				lineoff = tok->lineoffset - tok->tokenlength;
 				//single token process end
 			}
 
 			modulecount++;
 			linenum = tok->linenum;
-			lineoff = tok->lineoffset;
+			lineoff = tok->lineoffset - tok->tokenlength;
 
 		}
 		catch (const char* e)
 		{
-
+			if (!strcmp(e, "NUMBEREXPECTED"))
+			{
+				__parseerror(0, linenum,lineoff);
+			}
+			if (!strcmp(e, "SYMBOLEXPECTED"))
+			{
+				__parseerror(1, linenum, lineoff);
+			}
+			if (!strcmp(e, "SYMBOLTOOLONG"))
+			{
+				__parseerror(3, linenum, lineoff);
+			}
+			if (!strcmp(e, "MARIEEXPECTED"))
+			{
+				__parseerror(2, linenum, lineoff);
+			}
+			if (!strcmp(e, "DEF"))
+			{
+				__parseerror(4, linenum, lineoff);
+			}
+			if (!strcmp(e, "USE"))
+			{
+				__parseerror(5, linenum, lineoff);
+			}
+			if (!strcmp(e, "WORDS"))
+			{
+				__parseerror(6, linenum, lineoff);
+			}
 		}
 
 	}
-	printf("EOF position % d: % d\n", linenum, lineoff);
+
 }
 
 void Pass2() {
@@ -330,7 +390,7 @@ int main(int argc, char* argv[]) {
 	}
 	file.open(argv[1]);
 	*/
-	string f = "./input-1";
+	string f = "F:/Documents/lab1/syntaxerror";
 	file.open(f);
 	if (!file.is_open())
 	{
@@ -342,6 +402,11 @@ int main(int argc, char* argv[]) {
 	vector<symbol*> symbol_table;
 	module_table[0] = 0;
 	Pass1(file, module_table, symbol_table);
+	cout << "Symbol Table" << endl;
+	for (int i = 0; i < symbol_table.size(); i++)
+	{
+		cout << symbol_table[i]->name << "=" << symbol_table[i]->absadd << endl;
+	}
 	file.close();
 	file.open(f);
 	Pass2();
