@@ -112,8 +112,8 @@ def generate_input(path):
 
 SyntaxErrorProb = 0.05
 SemanticErrorProb = 0.5
-MaxNumberOfModules = 700  #多少个module
-NumberOfModules = 700  #semantic时的 M的module第几个的取值
+MaxNumberOfModules = 20  #多少个module
+NumberOfModules = 20  #semantic时的 M的module第几个的取值
 
 if __name__ == '__main__':
     for i in range(1,21):
