@@ -3,7 +3,6 @@
 #include<string>
 #include<cstring> 
 #include <vector>
-#pragma warning(disable : 4996)
 
 using namespace std;
 
@@ -13,6 +12,7 @@ using namespace std;
 #define SYMBOLSMAX 256
 #define WORDSMAX 512   //number of instruction 
 #define DEFIUSEMAX 16
+#pragma warning(disable : 4996)
 
 #include <map>
 
@@ -65,7 +65,7 @@ tokeninfo::~tokeninfo()
 }
 
 void __parseerror(int errcode, int linenum, int lineoffset) {
-	static char* errstr[] = {
+	const char* errstr[] = {
 	"NUM_EXPECTED", // Number expect, anything >= 2^30 is not a number either
 	"SYM_EXPECTED", // Symbol Expected
 	"MARIE_EXPECTED", // Addressing Expected which is M/A/R/I/E
@@ -230,8 +230,12 @@ char* readMARIE(tokeninfo* tok)
 	//return NULL;
 }
 
-int SymbolExistanceInTable(vector<symbol*> symbol_table, int left, int right, char* name)  //closed range
+int SymbolExistanceInTable(vector<symbol*>& symbol_table, int left, int right, char* name)  //closed range
 {
+	if (left > right)
+	{
+		return -1;
+	}
 	for (int i = left; i <= right; i++) {
 		if (!strcmp(symbol_table[i]->name, name))
 		{
@@ -254,7 +258,7 @@ int NumberofModules(int* module_table)
 	return sizeofmoduletable - 1;//since module table always store the start of next module
 }
 
-void Pass1(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
+void Pass1(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 	tokeninfo* tok = new tokeninfo();
 	int linenum = 1;
 	int lineoff = 1;
@@ -356,11 +360,12 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 			for (int i = 0; i < defcount; i++)
 			{
 				int j = symbol_table.size() - defcount + i; //absolute location of symbol in symboltable
-				if (symbol_table[j]->absadd >= module_table[modulecount] && (SymbolExistanceInTable(symbol_table, 0, j - 1, symbol_table[j]->name)==-1))  //rule 5 exceed size
+				if (symbol_table[j]->absadd >= module_table[modulecount] && (SymbolExistanceInTable(symbol_table, 0, j - 1, symbol_table[j]->name) == -1))  //rule 5 exceed size
 				{
 					printf("Warning: Module %d: %s=%d valid=[0..%d] assume zero relative\n", modulecount - 1, symbol_table[j]->name, symbol_table[j]->absadd - module_table[modulecount - 1], module_table[modulecount] - module_table[modulecount - 1] - 1);//第三项改相对地址
+					//symbol_table[j]->absadd = module_table[modulecount - 1]; //Now the absolute location of them point to the modulebase (relative 0)
 				}
-				if (SymbolExistanceInTable(symbol_table, 0, j - 1, symbol_table[j]->name)!=-1)  //rule 5 redefinition
+				if (SymbolExistanceInTable(symbol_table, 0, j - 1, symbol_table[j]->name) != -1)  //rule 5 redefinition
 				{
 					printf("Warning: Module %d: %s redefinition ignored\n", modulecount - 1, symbol_table[j]->name);
 				}
@@ -410,26 +415,28 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 	{
 		bool rule2f = false;   //not print when true, since only the first definition of one should be print
 		bool rule2l = false;   //print rule 2 error messsage
-		if (SymbolExistanceInTable(symbol_table, 0, i - 1, symbol_table[i]->name)!=-1)//there is a former definition of symbol[i], whose duplicate is symbol[j]
+		if (SymbolExistanceInTable(symbol_table, 0, i - 1, symbol_table[i]->name) != -1)//there is a former definition of symbol[i], whose duplicate is symbol[j]
 		{
 			rule2f = true;
 		}
 		if (!rule2f)
 		{
 			cout << symbol_table[i]->name << "=" << symbol_table[i]->absadd;
-			if (SymbolExistanceInTable(symbol_table, i + 1, symbol_table.size() - 1, symbol_table[i]->name)!=-1)//there is a latter definition of symbol[i], whose duplicate is symbol[j]
+			if (SymbolExistanceInTable(symbol_table, i + 1, symbol_table.size() - 1, symbol_table[i]->name) != -1)//there is a latter definition of symbol[i], whose duplicate is symbol[j]
 			{
 				rule2l = true;
 			}
 			if (rule2l)
 			{
-				cout << " Error: This variable is multiple times defined; first value used" << endl;
+				cout << " Error: This variable is multiple times defined; first value used";
 			}
 		}
+		cout << endl;
 	}
+	cout << endl;
 }
 
-void Pass2(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
+void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 	tokeninfo* tok = new tokeninfo();
 	int linenum = 1;
 	int lineoff = 1;
@@ -471,7 +478,7 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 				linenum = tok->linenum;
 				lineoff = tok->lineoffset - tok->tokenlength;
 				//run some check
-				if (true) {//condition to be added
+				if (false) {//condition to be added
 					symbol* temp = new symbol();
 					strcpy(temp->name, sym);
 					temp->absadd = val + module_table[modulecount];
@@ -547,7 +554,7 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 							int sizeofmoduletable = NumberofModules(module_table);
 							if (operand >= sizeofmoduletable)//rule 12
 							{
-								printf("%03d: %04d Error: Illegal module operand ; treated as module=0\n", module_table[modulecount] + i,0); //assume the 0-th module is starting at address 0
+								printf("%03d: %04d Error: Illegal module operand ; treated as module=0\n", module_table[modulecount] + i, 0); //assume the 0-th module is starting at address 0
 							}
 							printf("%03d: %04d\n", module_table[modulecount] + i, 1000 * opcode + module_table[operand]);
 						}
@@ -593,13 +600,13 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 								printf("%03d: %04d Error: External operand exceeds length of uselist; treated as relative=0\n", module_table[modulecount] + i, 1000 * opcode);//措辞不是很懂建议再看看
 								break;
 							}
+							uselistused[operand] = true;
 							int position = SymbolExistanceInTable(symbol_table, 0, symbol_table.size() - 1, uselist[operand]);//the position is found from left to right, so the return position would be the position of first one
 							if (position == -1)//rule 3
 							{
 								printf("%03d: %04d Error: %s is not defined; zero used\n", module_table[modulecount] + i, 1000 * opcode, uselist[operand]);
 								break;
 							}
-							uselistused[operand] = true;
 							symboltableused[position] = true;
 							printf("%03d: %04d\n", module_table[modulecount] + i, 1000 * opcode + symbol_table[position]->absadd);
 
@@ -660,25 +667,25 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*> symbol_table) {
 				__parseerror(6, linenum, lineoff);
 			}
 		}
-		for (int i = 0; i < symbol_table.size(); i++) //rule 4
+
+	}
+	for (int i = 0; i < symbol_table.size(); i++) //rule 4
+	{
+		if (symboltableused[i] == false && SymbolExistanceInTable(symbol_table, 0, i - 1, symbol_table[i]->name) == -1)//symbol table 和其他table 的元素的唯一性？？
 		{
-			if (symboltableused[i] == false&&SymbolExistanceInTable(symbol_table,0,i-1,symbol_table[i]->name)==-1)//symbol table 和其他table 的元素的唯一性？？
+			int whichmodule = 0;
+			int numberofmodules = NumberofModules(module_table);
+			for (int j = 0; j < numberofmodules; j++)
 			{
-				int whichmodule = 0;
-				int numberofmodules = NumberofModules(module_table);
-				for (int j = 0; j < numberofmodules; j++)
+				if (symbol_table[i]->absadd < module_table[j + 1])
 				{
-					if (symbol_table[i]->absadd < module_table[j + 1])
-					{
-						whichmodule = j;
-						break;
-					}
+					whichmodule = j;
+					break;
 				}
-				printf("Warning: Module %d: %s was defined but never used\n", whichmodule, symbol_table[i]->name);
 			}
+			printf("Warning: Module %d: %s was defined but never used\n", whichmodule, symbol_table[i]->name);
 		}
 	}
-
 }
 
 
@@ -689,9 +696,9 @@ int main(int argc, char* argv[]) {
 		cout << "A input file is needed";
 		return 0;
 	}
-	file.open(argv[1]);
+	string f = argv[1];
 	*/
-	string f = "F:/美国学习资料/OS/lab1/input-11";
+	string f = "F:/美国学习资料/OS/lab1/input-10";
 	file.open(f);
 	if (!file.is_open())
 	{
