@@ -12,7 +12,6 @@ using namespace std;
 #define SYMBOLSMAX 256
 #define WORDSMAX 512   //number of instruction 
 #define DEFIUSEMAX 16
-#pragma warning(disable : 4996)
 
 #include <map>
 
@@ -21,7 +20,7 @@ class symbol
 public:
 	symbol();
 	~symbol();
-	char name[SYMBOLMAX];
+	char name[SYMBOLMAX+1];
 	int absadd;
 private:
 
@@ -189,7 +188,7 @@ char* readSymbol(tokeninfo* tok)
 {
 	int count = 0;
 	if (tok->eof == true)throw"SYMBOLEXPECTED";
-	char* tokencopy = new char[SYMBOLMAX];
+	char* tokencopy = new char[SYMBOLMAX+1];
 	while (tok->token[count] != '\0') {
 		if (count == 0)
 		{
@@ -293,7 +292,7 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 			linenum = tok->linenum;
 			lineoff = tok->lineoffset - tok->tokenlength;
 			int defcount = readInt(tok);  // This is not a token. Storing a single attribute is allowed.
-			if (defcount >= DEFIUSEMAX)
+			if (defcount > DEFIUSEMAX)
 			{
 				throw "DEF";
 			}
@@ -328,7 +327,7 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 			int usecount = readInt(tok);
 			linenum = tok->linenum;
 			lineoff = tok->lineoffset - tok->tokenlength;
-			if (usecount >= DEFIUSEMAX)
+			if (usecount > DEFIUSEMAX)
 			{
 				throw "USE";
 			}
@@ -347,7 +346,7 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 			//single token process begin
 			tok = getToken(file, tok);
 			int instcount = readInt(tok);
-			if (module_table[modulecount] + instcount >= WORDSMAX)
+			if (module_table[modulecount] + instcount > WORDSMAX)
 			{
 				throw "WORDS";
 			}
@@ -679,14 +678,14 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 
 int main(int argc, char* argv[]) {
 	ifstream file;
-	/*if (argc <= 1)
+	if (argc <= 1)
 	{
 		cout << "A input file is needed";
 		return 0;
 	}
 	string f = argv[1];
-	*/
-	string f = "F:/美国学习资料/OS/lab1/input-19";
+	
+	//string f = "F:/美国学习资料/OS/lab1/mydebug/big2";
 	file.open(f);
 	if (!file.is_open())
 	{
