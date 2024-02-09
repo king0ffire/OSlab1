@@ -261,6 +261,22 @@ int SymbolExistanceInTable(vector<symbol*>& symbol_table, int left, int right, c
 	}
 	return -1;
 }
+
+int SymbolExistanceInTable(vector<symbol*>& symbol_table, vector<bool>& bool_table, int left, int right, char* name, bool equaltofind)  //both condition true then return the index, else return -1
+{
+	if (left > right)
+	{
+		return -1;
+	}
+	for (int i = left; i <= right; i++) {
+		if ((!strcmp(symbol_table[i]->name, name)) && bool_table[i]==equaltofind)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
 int NumberofModules(int* module_table)
 {
 	int sizeofmoduletable = 0;
@@ -524,7 +540,7 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 			lineoff = tok->lineoffset - tok->tokenlength;
 			symbol* temp = new symbol();
 			strcpy(temp->name, sym);
-			temp->absadd = modulecount;
+			temp->absadd = modulecount;  //store the that which module is the usesymbol from
 			uselisttable.push_back(temp);
 			uselistused.push_back(false);
 
@@ -651,30 +667,25 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 	}
 	cout << endl;
 
-	vector<int> modulestartinuselist_table;   // The relation of this modulestartinuselist_table and the uselist_table is like the relation of the module_table and the symbol_table. The modulestartinuselist_table indicate the 'index-th' module start at the 'value' in uselist.
+	vector<int> modulestartinuselist_table;   // The relation of this modulestartinuselist_table and the uselist_table is like the relation of the module_table and the symbol_table. The modulestartinuselist_table indicate the 'index-th' module start at the 'value' in uselist. The table will always store the start index of the usesymbol of next module. It is the same way to build a module_table.
+	modulestartinuselist_table.push_back(0);
 	for (int i = 0; i < uselisttable.size(); i++)
 	{
-		if (modulestartinuselist_table.size() < uselisttable[i]->absadd)
+		if (modulestartinuselist_table.size() <= uselisttable[i]->absadd)
 		{
 			modulestartinuselist_table.push_back(i);
 		}
 	}
 	for (int i = 0; i < uselisttable.size(); i++) //rule 4
 	{
-		int modulestartinuselist=
-		if (uselisttable[i] == false && SymbolExistanceInTable(uselisttable,uselisttable[i]->absadd, uselisttable, symbol_table[i]->name) == -1)//symbol table 和其他table 的元素的唯一性？？
+		int frommodule = uselisttable[i]->absadd;
+		if (SymbolExistanceInTable(uselisttable,modulestartinuselist_table[frommodule], modulestartinuselist_table[frommodule+1]-1, uselisttable[i]->name) == i)//首先得是该名字在uselist中的第一次出现才会被打印，因为所有名字的重复只用第一次打印就行
 		{
-			int whichmodule = 0;
-			int numberofmodules = NumberofModules(module_table);
-			for (int j = 0; j < numberofmodules; j++)
+			int anysameusesymbolused = SymbolExistanceInTable(uselisttable, uselistused, modulestartinuselist_table[frommodule], modulestartinuselist_table[frommodule + 1] - 1, uselisttable[i]->name, true); //用了一个重载， 找uselist的module区间中是否有同名被used过的，如果有就不用输出
+			if (anysameusesymbolused == -1)
 			{
-				if (symbol_table[i]->absadd < module_table[j + 1])
-				{
-					whichmodule = j;
-					break;
-				}
+				printf("Warning: Module %d: %s was defined but never used\n", uselisttable[i]->absadd, symbol_table[i]->name);
 			}
-			printf("Warning: Module %d: %s was defined but never used\n", whichmodule, symbol_table[i]->name);
 		}
 	}
 }
