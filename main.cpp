@@ -465,6 +465,8 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 	int lineoff = 1;
 	int modulecount = 0;
 	vector<bool> symboltableused;
+	vector<symbol*> uselisttable;  //abs store module number
+	vector<bool> uselistused;  //第一次用，不知道会怎样
 	for (int i = 0; i < symbol_table.size(); i++)
 	{
 		symboltableused.push_back(false);
@@ -506,8 +508,8 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 		}
 
 		//Use list
-		vector<char*> uselist;
-		vector<bool> uselistused;  //第一次用，不知道会怎样
+		//vector<char*> uselist;
+
 		//single token process begin
 		tok = getToken(file, tok);
 		int usecount = readInt(tok);
@@ -520,9 +522,12 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 			char* sym = readSymbol(tok);
 			linenum = tok->linenum;
 			lineoff = tok->lineoffset - tok->tokenlength;
-			uselist.push_back(sym);
+			symbol* temp = new symbol();
+			strcpy(temp->name, sym);
+			temp->absadd = modulecount;
+			uselisttable.push_back(temp);
 			uselistused.push_back(false);
-			//we don’t do anything here this would change in pass2 
+
 			//single token process end
 		}
 
@@ -606,22 +611,21 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 				case 'E':
 					if (true)
 					{
-						if (operand + 1 > uselist.size())//rule 6
+						if (operand + 1 > usecount)//rule 6
 						{
 							printf("%03d: %04d Error: External operand exceeds length of uselist; treated as relative=0\n", module_table[modulecount] + i, 1000 * opcode+module_table[modulecount]);//措辞不是很懂建议再看看
 							break;
 						}
-						uselistused[operand] = true;
-						int firstposition = SymbolExistanceInTable(symbol_table, 0, symbol_table.size() - 1, uselist[operand]);//错误的the position is found from left to right, so the return position would be the position of first one
+						//symbol = uselisttable[k] 
+						int j = uselisttable.size() - usecount + operand; //absolute location of symbol in uselisttable
+						uselistused[j] = true;
+						int firstposition = SymbolExistanceInTable(symbol_table, 0, symbol_table.size() - 1, uselisttable[j]->name);//the position in symbol_table is found from left to right, so the return position would be the position of first one
 						if (firstposition == -1)//rule 3
 						{
-							printf("%03d: %04d Error: %s is not defined; zero used\n", module_table[modulecount] + i, 1000 * opcode, uselist[operand]);
+							printf("%03d: %04d Error: %s is not defined; zero used\n", module_table[modulecount] + i, 1000 * opcode, uselisttable[j]->name);
 							break;
 						}
-						int abspositioninmodule = module_table[modulecount] + operand;  //uselist中重定义的触发
-						int firstabsinmodule = SymbolExistanceInTable(symbol_table, module_table[modulecount], module_table[modulecount + 1] - 1, uselist[operand]);
-						symboltableused[abspositioninmodule] = true;
-						symboltableused
+						symboltableused[firstposition] = true;
 						printf("%03d: %04d\n", module_table[modulecount] + i, 1000 * opcode + symbol_table[firstposition]->absadd);
 
 					}
@@ -633,11 +637,12 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 			//single token process end
 		}
 
-		for (int i = 0; i < usecount; i++)//rule7
+		for (int i = 0; i < usecount; i++)//rule 7
 		{
-			if (uselistused[i] == false)
+			int j = uselisttable.size() - usecount + i; //absolute location of symbol in uselisttable
+			if (uselistused[j] == false)
 			{
-				printf("Warning: Module %d: uselist[%d]=%s was not used\n", modulecount, i, uselist[i]);
+				printf("Warning: Module %d: uselist[%d]=%s was not used\n", modulecount, i, uselisttable[j]);
 			}
 		}
 		modulecount++;   //now point to next module
@@ -646,9 +651,18 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 	}
 	cout << endl;
 
-	for (int i = 0; i < symbol_table.size(); i++) //rule 4
+	vector<int> modulestartinuselist_table;   // The relation of this modulestartinuselist_table and the uselist_table is like the relation of the module_table and the symbol_table. The modulestartinuselist_table indicate the 'index-th' module start at the 'value' in uselist.
+	for (int i = 0; i < uselisttable.size(); i++)
 	{
-		if (symboltableused[i] == false && SymbolExistanceInTable(symbol_table, 0, i - 1, symbol_table[i]->name) == -1)//symbol table 和其他table 的元素的唯一性？？
+		if (modulestartinuselist_table.size() < uselisttable[i]->absadd)
+		{
+			modulestartinuselist_table.push_back(i);
+		}
+	}
+	for (int i = 0; i < uselisttable.size(); i++) //rule 4
+	{
+		int modulestartinuselist=
+		if (uselisttable[i] == false && SymbolExistanceInTable(uselisttable,uselisttable[i]->absadd, uselisttable, symbol_table[i]->name) == -1)//symbol table 和其他table 的元素的唯一性？？
 		{
 			int whichmodule = 0;
 			int numberofmodules = NumberofModules(module_table);
