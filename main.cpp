@@ -3,7 +3,7 @@
 #include<string>
 #include<cstring> 
 #include <vector>
-
+#pragma warning(disable : 4996)
 using namespace std;
 
 #define TOKENMAX 100    //2^30 would be 10 char. if any symbol or number is longer then this TOKENMAX, it will cause error
@@ -452,8 +452,9 @@ void Pass1(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 			{
 				cout << " Error: This variable is multiple times defined; first value used";
 			}
+			cout << endl; //在有输出时才换行
 		}
-		cout << endl;
+		//
 	}
 	cout << endl;
 }
@@ -479,10 +480,6 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 		linenum = tok->linenum;
 		lineoff = tok->lineoffset - tok->tokenlength;
 		int defcount = readInt(tok);  // This is not a token. Storing a single attribute is allowed.
-		if (defcount >= DEFIUSEMAX)
-		{
-			throw "DEF";
-		}
 		//single token process end
 		for (int i = 0; i < defcount; i++) {
 
@@ -516,10 +513,6 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 		int usecount = readInt(tok);
 		linenum = tok->linenum;
 		lineoff = tok->lineoffset - tok->tokenlength;
-		if (usecount >= DEFIUSEMAX)
-		{
-			throw "USE";
-		}
 		//single token process end
 		for (int i = 0; i < usecount; i++) {
 			//single token process begin
@@ -539,10 +532,6 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 		int instcount = readInt(tok);
 		linenum = tok->linenum;
 		lineoff = tok->lineoffset - tok->tokenlength;
-		if (instcount >= WORDSMAX)
-		{
-			throw "WORDS";
-		}
 		module_table[modulecount + 1] = module_table[modulecount] + instcount;  //will always store the base of "next" module.
 		//single token process end
 
@@ -619,18 +608,21 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 					{
 						if (operand + 1 > uselist.size())//rule 6
 						{
-							printf("%03d: %04d Error: External operand exceeds length of uselist; treated as relative=0\n", module_table[modulecount] + i, 1000 * opcode);//措辞不是很懂建议再看看
+							printf("%03d: %04d Error: External operand exceeds length of uselist; treated as relative=0\n", module_table[modulecount] + i, 1000 * opcode+module_table[modulecount]);//措辞不是很懂建议再看看
 							break;
 						}
 						uselistused[operand] = true;
-						int position = SymbolExistanceInTable(symbol_table, 0, symbol_table.size() - 1, uselist[operand]);//the position is found from left to right, so the return position would be the position of first one
-						if (position == -1)//rule 3
+						int firstposition = SymbolExistanceInTable(symbol_table, 0, symbol_table.size() - 1, uselist[operand]);//错误的the position is found from left to right, so the return position would be the position of first one
+						if (firstposition == -1)//rule 3
 						{
 							printf("%03d: %04d Error: %s is not defined; zero used\n", module_table[modulecount] + i, 1000 * opcode, uselist[operand]);
 							break;
 						}
-						symboltableused[position] = true;
-						printf("%03d: %04d\n", module_table[modulecount] + i, 1000 * opcode + symbol_table[position]->absadd);
+						int abspositioninmodule = module_table[modulecount] + operand;  //uselist中重定义的触发
+						int firstabsinmodule = SymbolExistanceInTable(symbol_table, module_table[modulecount], module_table[modulecount + 1] - 1, uselist[operand]);
+						symboltableused[abspositioninmodule] = true;
+						symboltableused
+						printf("%03d: %04d\n", module_table[modulecount] + i, 1000 * opcode + symbol_table[firstposition]->absadd);
 
 					}
 					break;
@@ -651,11 +643,9 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 		modulecount++;   //now point to next module
 		linenum = tok->linenum;
 		lineoff = tok->lineoffset - tok->tokenlength;
-
-
-
-
 	}
+	cout << endl;
+
 	for (int i = 0; i < symbol_table.size(); i++) //rule 4
 	{
 		if (symboltableused[i] == false && SymbolExistanceInTable(symbol_table, 0, i - 1, symbol_table[i]->name) == -1)//symbol table 和其他table 的元素的唯一性？？
@@ -678,14 +668,14 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 
 int main(int argc, char* argv[]) {
 	ifstream file;
-	if (argc <= 1)
+	/*if (argc <= 1)
 	{
 		cout << "A input file is needed";
 		return 0;
 	}
 	string f = argv[1];
-	
-	//string f = "F:/美国学习资料/OS/lab1/mydebug/big2";
+	*/
+	string f = "F:/美国学习资料/OS/lab1/mydebug/big3";
 	file.open(f);
 	if (!file.is_open())
 	{
