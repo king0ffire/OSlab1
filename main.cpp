@@ -6,7 +6,7 @@
 #pragma warning(disable : 4996)
 
 #define TOKENMAX 100    //2^30 would be 10 char. if any symbol or number is longer then this TOKENMAX, it will cause error
-#define LINEMAX 4000    //cannot handle if there are too many spaces in a line
+#define LINEMAX 4096    //cannot handle if there are too many spaces in a line
 #define SYMBOLMAX 16
 #define SYMBOLSMAX 256
 #define WORDSMAX 512   //number of instruction 
@@ -47,7 +47,7 @@ public:
 	int tokenlength; //should <=16?
 	int linenum;   //irl
 	int lineoffset; //irl
-	char linebuffer[LINEMAX];  //one line max how much????
+	char linebuffer[LINEMAX+1];  //one line max how much????
 	bool eof;
 private:
 
@@ -91,38 +91,42 @@ void __parseerror(int errcode, int linenum, int lineoffset) {
 	exit(1);
 }
 
-tokeninfo* getToken(ifstream& fileobj, tokeninfo* buffer) { //the offset is always point to the end of a token
+tokeninfo* getToken(ifstream& fileobj, tokeninfo* buffer) { //the offset is always point to the end of a token  
 	//static char temp[20];
 	string temp;
 	memset(buffer->token, 0, sizeof(buffer->token));
 	buffer->tokenlength = 0;
-	tokeninfo copy = *buffer;
+	bool lastplus = true;
 	while (true) {
 
-		if (buffer->linebuffer[buffer->lineoffset - 1] == '\0')  //The file begin with double \n????   \n becomes \0 since we use getline
+		if (buffer->linebuffer[buffer->lineoffset - 1] == '\0')  //The file begin with double \n???? 
 		{
-			if (fileobj.eof())
+			getline(fileobj, temp);
+			if (fileobj.fail())
 			{
-				*buffer = copy;//EOF必须让本次所有修改不生效,使用上一次信息
+				buffer->lineoffset--;
 				buffer->eof = true;
 				return buffer;
 			}
-			copy = *buffer;//总是保存上一次的信息
+			if (temp==""||!fileobj.eof()) temp += '\n';
 			buffer->linenum++;
 			buffer->lineoffset = 1;
-			getline(fileobj, temp);
 			strcpy(buffer->linebuffer, temp.c_str());
+		}
+		else if (buffer->linebuffer[buffer->lineoffset - 1] == '\n')
+		{
+			buffer->lineoffset++;
 		}
 		else if (buffer->linebuffer[buffer->lineoffset - 1] == ' ' || buffer->linebuffer[buffer->lineoffset - 1] == '\t')
 		{
-			buffer->lineoffset++;
+			buffer->lineoffset++; //指向数组地址下一个开始的地方
 		}
 		else  //encounter token
 		{
 			break;
 		}
 	}
-	while (!(buffer->linebuffer[buffer->lineoffset - 1] == '\0' || buffer->linebuffer[buffer->lineoffset - 1] == ' ' || buffer->linebuffer[buffer->lineoffset - 1] == '\t'))
+	while (!(buffer->linebuffer[buffer->lineoffset - 1] == '\n' || buffer->linebuffer[buffer->lineoffset - 1] == ' ' || buffer->linebuffer[buffer->lineoffset - 1] == '\t'))
 	{
 		if (buffer->tokenlength > 16)
 		{
@@ -684,7 +688,7 @@ int main(int argc, char* argv[]) {
 	}
 	string f = argv[1];
 	*/
-	string f = "F:/美国学习资料/OS/lab1/mydebug/big3";
+	string f = "F:/美国学习资料/OS/lab1/mydebug/input-18-4";
 	file.open(f);
 	if (!file.is_open())
 	{
