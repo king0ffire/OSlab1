@@ -47,7 +47,7 @@ public:
 	int tokenlength; //should <=16?
 	int linenum;   //irl
 	int lineoffset; //irl
-	char linebuffer[LINEMAX+1];  //one line max how much????
+	char linebuffer[LINEMAX + 1];  //one line max how much????
 	bool eof;
 private:
 
@@ -96,7 +96,6 @@ tokeninfo* getToken(ifstream& fileobj, tokeninfo* buffer) { //the offset is alwa
 	string temp;
 	memset(buffer->token, 0, sizeof(buffer->token));
 	buffer->tokenlength = 0;
-	bool lastplus = true;
 	while (true) {
 
 		if (buffer->linebuffer[buffer->lineoffset - 1] == '\0')  //The file begin with double \n???? 
@@ -108,7 +107,7 @@ tokeninfo* getToken(ifstream& fileobj, tokeninfo* buffer) { //the offset is alwa
 				buffer->eof = true;
 				return buffer;
 			}
-			if (temp==""||!fileobj.eof()) temp += '\n';
+			if (temp == "" || !fileobj.eof()) temp += '\n';
 			buffer->linenum++;
 			buffer->lineoffset = 1;
 			strcpy(buffer->linebuffer, temp.c_str());
@@ -126,7 +125,7 @@ tokeninfo* getToken(ifstream& fileobj, tokeninfo* buffer) { //the offset is alwa
 			break;
 		}
 	}
-	while (!(buffer->linebuffer[buffer->lineoffset - 1] == '\n' || buffer->linebuffer[buffer->lineoffset - 1] == ' ' || buffer->linebuffer[buffer->lineoffset - 1] == '\t'))
+	while (!(buffer->linebuffer[buffer->lineoffset - 1] == '\n' || buffer->linebuffer[buffer->lineoffset - 1] == ' ' || buffer->linebuffer[buffer->lineoffset - 1] == '\t' || buffer->linebuffer[buffer->lineoffset - 1] == '\0'))
 	{
 		if (buffer->tokenlength > 16)
 		{
@@ -667,7 +666,7 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 		{
 			for (int j = 0; j < numberofmodules; j++)
 			{
-				if (i<deflistbase_table[j+1])//symbol_table[i]->absadd < module_table[j + 1])
+				if (i < deflistbase_table[j + 1])//symbol_table[i]->absadd < module_table[j + 1])
 				{
 					whichmodule = j;
 					break;
@@ -688,7 +687,7 @@ int main(int argc, char* argv[]) {
 	}
 	string f = argv[1];
 	*/
-	string f = "F:/美国学习资料/OS/lab1/mydebug/input-18-4";
+	string f = "F:/美国学习资料/OS/lab1/mydebug/syntax15";
 	file.open(f);
 	if (!file.is_open())
 	{
