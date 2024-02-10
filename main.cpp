@@ -4,7 +4,6 @@
 #include<cstring> 
 #include <vector>
 #pragma warning(disable : 4996)
-using namespace std;
 
 #define TOKENMAX 100    //2^30 would be 10 char. if any symbol or number is longer then this TOKENMAX, it will cause error
 #define LINEMAX 4000    //cannot handle if there are too many spaces in a line
@@ -15,12 +14,14 @@ using namespace std;
 
 #include <map>
 
+using namespace std;
+
 class symbol
 {
 public:
 	symbol();
 	~symbol();
-	char name[SYMBOLMAX+1];
+	char name[SYMBOLMAX + 1];
 	int absadd;
 private:
 
@@ -62,7 +63,7 @@ tokeninfo::tokeninfo()
 	this->eof = false;
 }
 
-tokeninfo::tokeninfo(const tokeninfo &tok) //deep copy
+tokeninfo::tokeninfo(const tokeninfo& tok) //deep copy
 {
 	strcpy(this->token, tok.token);
 	this->tokenlength = tok.tokenlength;
@@ -97,7 +98,7 @@ tokeninfo* getToken(ifstream& fileobj, tokeninfo* buffer) { //the offset is alwa
 	buffer->tokenlength = 0;
 	tokeninfo copy = *buffer;
 	while (true) {
-		
+
 		if (buffer->linebuffer[buffer->lineoffset - 1] == '\0')  //The file begin with double \n????   \n becomes \0 since we use getline
 		{
 			if (fileobj.eof())
@@ -188,7 +189,7 @@ char* readSymbol(tokeninfo* tok)
 {
 	int count = 0;
 	if (tok->eof == true)throw"SYMBOLEXPECTED";
-	char* tokencopy = new char[SYMBOLMAX+1];
+	char* tokencopy = new char[SYMBOLMAX + 1];
 	while (tok->token[count] != '\0') {
 		if (count == 0)
 		{
@@ -262,20 +263,6 @@ int SymbolExistanceInTable(vector<symbol*>& symbol_table, int left, int right, c
 	return -1;
 }
 
-int SymbolExistanceInTable(vector<symbol*>& symbol_table, vector<bool>& bool_table, int left, int right, char* name, bool equaltofind)  //both condition true then return the index, else return -1
-{
-	if (left > right)
-	{
-		return -1;
-	}
-	for (int i = left; i <= right; i++) {
-		if ((!strcmp(symbol_table[i]->name, name)) && bool_table[i]==equaltofind)
-		{
-			return i;
-		}
-	}
-	return -1;
-}
 
 int NumberofModules(int* module_table)
 {
@@ -483,6 +470,12 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 	vector<bool> symboltableused;
 	vector<symbol*> uselisttable;  //abs store module number
 	vector<bool> uselistused;  //第一次用，不知道会怎样
+	int deflistbase_table[WORDSMAX];
+	for (int i = 0; i < WORDSMAX; i++)
+	{
+		deflistbase_table[i] = -1;
+	}
+	deflistbase_table[0] = 0;
 	for (int i = 0; i < symbol_table.size(); i++)
 	{
 		symboltableused.push_back(false);
@@ -498,6 +491,7 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 		linenum = tok->linenum;
 		lineoff = tok->lineoffset - tok->tokenlength;
 		int defcount = readInt(tok);  // This is not a token. Storing a single attribute is allowed.
+		deflistbase_table[modulecount + 1] = deflistbase_table[modulecount] + defcount; //same size as module_table
 		//single token process end
 		for (int i = 0; i < defcount; i++) {
 
@@ -513,13 +507,6 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 			int val = readInt(tok);
 			linenum = tok->linenum;
 			lineoff = tok->lineoffset - tok->tokenlength;
-			//run some check
-			if (false) {//condition to be added
-				symbol* temp = new symbol();
-				strcpy(temp->name, sym);
-				temp->absadd = val + module_table[modulecount];
-				symbol_table.push_back(temp);                             //this would change in pass2
-			}
 			//single token process end
 		}
 
@@ -531,6 +518,7 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 		int usecount = readInt(tok);
 		linenum = tok->linenum;
 		lineoff = tok->lineoffset - tok->tokenlength;
+		//modulebaseinusetable_table[modulecount + 1] = modulebaseinusetable_table[modulecount] + usecount;
 		//single token process end
 		for (int i = 0; i < usecount; i++) {
 			//single token process begin
@@ -553,7 +541,7 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 		int instcount = readInt(tok);
 		linenum = tok->linenum;
 		lineoff = tok->lineoffset - tok->tokenlength;
-		module_table[modulecount + 1] = module_table[modulecount] + instcount;  //will always store the base of "next" module.
+		//module_table[modulecount + 1] = module_table[modulecount] + instcount;  //will always store the base of "next" module.
 		//single token process end
 
 		for (int i = 0; i < instcount; i++) {
@@ -629,7 +617,7 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 					{
 						if (operand + 1 > usecount)//rule 6
 						{
-							printf("%03d: %04d Error: External operand exceeds length of uselist; treated as relative=0\n", module_table[modulecount] + i, 1000 * opcode+module_table[modulecount]);//措辞不是很懂建议再看看
+							printf("%03d: %04d Error: External operand exceeds length of uselist; treated as relative=0\n", module_table[modulecount] + i, 1000 * opcode + module_table[modulecount]);//措辞不是很懂建议再看看
 							break;
 						}
 						//symbol = uselisttable[k] 
@@ -667,25 +655,21 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 	}
 	cout << endl;
 
-	vector<int> modulestartinuselist_table;   // The relation of this modulestartinuselist_table and the uselist_table is like the relation of the module_table and the symbol_table. The modulestartinuselist_table indicate the 'index-th' module start at the 'value' in uselist. The table will always store the start index of the usesymbol of next module. It is the same way to build a module_table.
-	modulestartinuselist_table.push_back(0);
-	for (int i = 0; i < uselisttable.size(); i++)
+	int whichmodule = 0;
+	int numberofmodules = NumberofModules(module_table);
+	for (int i = 0; i < symbol_table.size(); i++) //rule 4 怎么判断i这个数是来自哪个模块 i号symbol的abs落在modulebase里？
 	{
-		if (modulestartinuselist_table.size() <= uselisttable[i]->absadd)
+		if (symboltableused[i] == false && SymbolExistanceInTable(symbol_table, 0, i - 1, symbol_table[i]->name) == -1)//symbol table 和其他table 的元素的唯一性？？
 		{
-			modulestartinuselist_table.push_back(i);
-		}
-	}
-	for (int i = 0; i < uselisttable.size(); i++) //rule 4
-	{
-		int frommodule = uselisttable[i]->absadd;
-		if (SymbolExistanceInTable(uselisttable,modulestartinuselist_table[frommodule], modulestartinuselist_table[frommodule+1]-1, uselisttable[i]->name) == i)//首先得是该名字在uselist中的第一次出现才会被打印，因为所有名字的重复只用第一次打印就行
-		{
-			int anysameusesymbolused = SymbolExistanceInTable(uselisttable, uselistused, modulestartinuselist_table[frommodule], modulestartinuselist_table[frommodule + 1] - 1, uselisttable[i]->name, true); //用了一个重载， 找uselist的module区间中是否有同名被used过的，如果有就不用输出
-			if (anysameusesymbolused == -1)
+			for (int j = 0; j < numberofmodules; j++)
 			{
-				printf("Warning: Module %d: %s was defined but never used\n", uselisttable[i]->absadd, symbol_table[i]->name);
+				if (i<deflistbase_table[j+1])//symbol_table[i]->absadd < module_table[j + 1])
+				{
+					whichmodule = j;
+					break;
+				}
 			}
+			printf("Warning: Module %d: %s was defined but never used\n", whichmodule, symbol_table[i]->name);
 		}
 	}
 }
