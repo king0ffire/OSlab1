@@ -3,7 +3,6 @@
 #include<string>
 #include<cstring> 
 #include <vector>
-#pragma warning(disable : 4996)
 
 #define TOKENMAX 100    //2^30 would be 10 char. if any symbol or number is longer then this TOKENMAX, it will cause error
 #define LINEMAX 4096    //cannot handle if there are too many spaces in a line
@@ -680,14 +679,13 @@ void Pass2(ifstream& file, int* module_table, vector<symbol*>& symbol_table) {
 
 int main(int argc, char* argv[]) {
 	ifstream file;
-	/*if (argc <= 1)
+	if (argc <= 1)
 	{
 		cout << "A input file is needed";
 		return 0;
 	}
 	string f = argv[1];
-	*/
-	string f = "F:/美国学习资料/OS/lab1/mydebug/syntax15";
+	
 	file.open(f);
 	if (!file.is_open())
 	{
