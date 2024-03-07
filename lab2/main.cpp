@@ -43,8 +43,9 @@ int main(int argc, char* argv[]) {
 			break;
 		}
 	}
-	ifstream file;
-	if (argc- optind <= 0)
+	ifstream inputfile;
+	ifstream randfile;
+	if (argc- optind <= 1)
 	{
 		cout << "A input file is needed";
 		return 0;
@@ -64,27 +65,35 @@ int main(int argc, char* argv[]) {
 		//do RR
 		break;
 	case'P':
-
 		//do PRIO
-
+		sscanf(ss.substr(1).c_str(), "%d:%d", &quantum, &maxprios);
 		break;
 	case'E':
 		//do PREE PRIO
-
+		sscanf(ss.substr(1).c_str(), "%d:%d", &quantum, &maxprios);
 		break;
 	default:
 		break;
 	}
 
 
-	string f = argv[1];
+	string f1 = argv[1+optind];
+	string f2 = argv[2+optind];
 
-	file.open(f);
-	if (!file.is_open())
+	inputfile.open(f1);
+	if (!inputfile.is_open())
 	{
 		cout << "no file";
 		return 0;
 	}
+	randfile.open(f2);
+	if (!randfile.is_open())
+	{
+		cout << "no file";
+		return 0;
+	}
+
+
 	vector<symbol*> symbol_table;
 	int module_table[WORDSMAX]; //seems to be 128? But just do it
 	for (int i = 0; i < WORDSMAX; i++)
