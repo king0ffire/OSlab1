@@ -319,6 +319,7 @@ RR::~RR()
 }
 void RR::add_process(Process* p)
 {
+	p->dynamic_priority = p->static_priority - 1;
 	runqueue.push(p);
 }
 Process* RR::get_next_process()
@@ -481,30 +482,28 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 		case STATE_PREEMPTED: 
 			// transition 5
 			// similar to TRANS_TO_READY // must come from RUNNING (preemption)  //quantum expiration or PREPRIO
-			// add to runqueue (no event is generated)
+			// add to runqueue (no event is generated
 			proc->state = STATE_PREEMPTED;
 			proc->state_ts = CURRENT_TIME;
 			proc->remainingtime = proc->remainingtime - timeInPrevState;
 			proc->remainingcpuburst = proc->remainingcpuburst - timeInPrevState;
+			if (debugparas.eflag == true)
+			{
+				printf("%d %d %d: RUNNG -> READY  cb=%d rem=%d prio=%d\n", CURRENT_TIME, proc->pid, timeInPrevState, proc->remainingcpuburst, proc->remainingtime, proc->dynamic_priority);
+			}
 			proc->dynamic_priority--;
 			time_cpubusy += timeInPrevState;
 			currentproc = nullptr;
-			if (!(scheduler->test_preempt(proc,CURRENT_TIME))) //quantum结束
-			{
-				proc->dynamic_priority = proc->static_priority - 1;
-			}
 			
 			scheduler->add_process(proc);
 			CALL_SCHEDULER = true;
 
-			if (debugparas.eflag == true)
-			{
-				printf("%d %d %d: RUNNG -> READY  cb=%d rem=%d prio=%d\n", CURRENT_TIME, proc->pid, timeInPrevState, proc->remainingcpuburst,proc->remainingtime, proc->dynamic_priority);
-			}
+			
 			break;
 		case STATE_RUNNING:
 			// transition 2
 			// create event for either preemption or blocking
+			
 			proc->CW += timeInPrevState;
 
 			if (proc->remainingcpuburst == 0) {
@@ -611,7 +610,7 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 }
 
 int main(int argc, char* argv[]) {
-	string ss="P2";  //scheduled select
+	string ss="R2";  //scheduled select
 	//int c;
 	Scheduler* scheduler = nullptr;
 	/*
@@ -685,7 +684,7 @@ int main(int argc, char* argv[]) {
 		break;
 	}
 
-	string f1 = "F:/美国学习资料/OS/lab2/lab2_assign/input0";
+	string f1 = "F:/美国学习资料/OS/lab2/lab2_assign/input7";
 	string f2 = "F:/美国学习资料/OS/lab2/lab2_assign/rfile";
 	//string f1 = argv[1+0]; //optind
 	//string f2 = argv[2+0];
