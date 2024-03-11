@@ -111,7 +111,16 @@ void put_event(list<Event*> &eventQ, Event* event) {
 		}
 	}
 }
-
+list<Event*>::iterator findeventiteratorbyprocess(list<Event*>& eventQ,Process* proc)
+{
+	for (list<Event*>::iterator it = eventQ.begin(); it != eventQ.end(); it++)
+	{
+		if ((*it)->process == proc)
+		{
+			return it;
+		}
+	}
+}
 Event* get_event(list<Event*>& eventQ) {
 	if (eventQ.empty()) return nullptr;
 	return eventQ.front();
@@ -125,14 +134,8 @@ void rm_event(list<Event*>& eventQ) {
 
 void rm_event_preempt(list<Event*>& eventQ, Process* runningproc)  //assuming the runningproc is always exist only once in the Q
 {
-	for (list<Event*>::iterator it = eventQ.begin(); it != eventQ.end(); it++)
-	{
-		if ((*it)->process == runningproc)
-		{
-			eventQ.erase(it);
+			eventQ.erase(findeventiteratorbyprocess(eventQ,runningproc));
 			return;
-		}
-	}
 }
 
 class Scheduler
@@ -144,7 +147,7 @@ public:
 	~Scheduler();
 	virtual void add_process(Process* p) = 0;
 	virtual Process* get_next_process() = 0;
-	virtual bool test_preempt(Process* p, int curtime)=0;
+	virtual int test_preempt(list<Event*>&eventQ,Process* p, int curtime)=0;
 	virtual string getname() = 0;
 	//Container<*Process> RUN_QUEUE;
 private:
@@ -167,7 +170,7 @@ public:
 	~FIFO();
 	void add_process(Process* p);
 	Process* get_next_process();
-	bool test_preempt(Process* p, int curtime);
+	int test_preempt(list<Event*>& eventQ, Process* p, int curtime);
 	string getname();
 	queue<Process*> runqueue;
 private:
@@ -195,9 +198,9 @@ Process* FIFO::get_next_process()
 	runqueue.pop();
 	return proc;
 }
-bool FIFO::test_preempt(Process* p, int curtime)
+int FIFO::test_preempt(list<Event*>& eventQ, Process* p, int curtime)
 {
-	return false;
+	return -1;
 }
 string FIFO::getname()
 {
@@ -212,7 +215,7 @@ public:
 	~LCFS();
 	void add_process(Process* p);
 	Process* get_next_process();
-	bool test_preempt(Process* p, int curtime);
+	int test_preempt(list<Event*>& eventQ,Process* p, int curtime);
 	string getname();
 	stack<Process*> runqueue;
 private:
@@ -240,9 +243,9 @@ Process* LCFS::get_next_process()
 	runqueue.pop();
 	return temp;
 }
-bool LCFS::test_preempt(Process* p, int curtime)
+int LCFS::test_preempt(list<Event*>& eventQ, Process* p, int curtime)
 {
-	return false;
+	return -1;
 }
 string LCFS::getname()
 {
@@ -257,7 +260,7 @@ public:
 	~SRTF();
 	void add_process(Process* p);
 	Process* get_next_process();
-	bool test_preempt(Process* p, int curtime);
+	int test_preempt(list<Event*>& eventQ, Process* p, int curtime);
 	string getname();
 	list<Process*> runqueue;
 private:
@@ -295,9 +298,9 @@ Process* SRTF::get_next_process()
 	runqueue.pop_front();
 	return temp;
 }
-bool SRTF::test_preempt(Process* p, int curtime)
+int SRTF::test_preempt(list<Event*>& eventQ, Process* p, int curtime)
 {
-	return false;
+	return -1;
 }
 string SRTF::getname()
 {
@@ -312,7 +315,7 @@ public:
 	~RR();
 	void add_process(Process* p);
 	Process* get_next_process();
-	bool test_preempt(Process* p, int curtime);
+	int test_preempt(list<Event*>& eventQ, Process* p, int curtime);
 	string getname();
 	queue<Process*> runqueue;
 private:
@@ -341,10 +344,11 @@ Process* RR::get_next_process()
 	runqueue.pop();
 	return proc;
 }
-bool RR::test_preempt(Process* p, int curtime)
+int RR::test_preempt(list<Event*>& eventQ, Process* p, int curtime)
 {
-	return false;
+	return -1;
 }
+
 string RR::getname()
 {
 	return "RR "+to_string(quantum);
@@ -358,7 +362,7 @@ public:
 	~PriorityScheduler();
 	void add_process(Process* p);
 	Process* get_next_process();
-	bool test_preempt(Process* p, int curtime);
+	int test_preempt(list<Event*>& eventQ, Process* p, int curtime);
 	string getname();
 	queue<Process*>* activeQ;
 	queue<Process*>* expiredQ;
@@ -419,9 +423,9 @@ Process* PriorityScheduler::get_next_process()
 	}
 	return nullptr;
 }
-bool PriorityScheduler::test_preempt(Process* p, int curtime)
+int PriorityScheduler::test_preempt(list<Event*>& eventQ, Process* p, int curtime)
 {
-	return false;
+	return -1;
 }
 string PriorityScheduler::getname()
 {
@@ -436,7 +440,7 @@ public:
 	~PREEPRIO();
 	void add_process(Process* p);
 	Process* get_next_process();
-	bool test_preempt(Process* p, int curtime);
+	int test_preempt(list<Event*>& eventQ, Process* p, int curtime);
 	string getname();
 	queue<Process*>* activeQ;
 	queue<Process*>* expiredQ;
@@ -497,9 +501,11 @@ Process* PREEPRIO::get_next_process()
 	}
 	return nullptr;
 }
-bool PREEPRIO::test_preempt(Process* p, int curtime)
+int PREEPRIO::test_preempt(list<Event*> &eventQ, Process* p, int curtime)
 {
-	return true;
+	list<Event*>::iterator it = findeventiteratorbyprocess(eventQ, p);
+	int eventtimeofp = (*it)->timestamp;
+	return eventtimeofp - curtime;
 }
 string PREEPRIO::getname()
 {
@@ -526,7 +532,8 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 	int time_iobusy = 0;
 	int time_iononbusy = 0;
 	int ionumbers = 0;
-	bool preemptdebug = 0;
+	bool preemptdebug1 = false;
+	int preemptdebug2 = -1;
 	while ((evt = get_event(eventQ))!=nullptr) {
 		rm_event(eventQ);
 		if (ionumbers > 0)
@@ -551,45 +558,54 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 			// add to run queue, no event created
 			if (fromstate == STATE_BLOCKED) { // ALL return from IO reset dynamic 
 				proc->dynamic_priority = proc->static_priority-1;
-				//proc->IO += timeInPrevState;
-				proc->state = STATE_READY;
 				proc->IT += timeInPrevState;
 				ionumbers--;
 			}
-
-			if (scheduler->test_preempt(proc, CURRENT_TIME)&&currentproc!=nullptr&&proc->dynamic_priority>currentproc->dynamic_priority)
+			
+			if (currentproc != nullptr)
 			{
-				newevent = new Event();
-				newevent->timestamp = CURRENT_TIME;
-				newevent->oldstate = STATE_RUNNING;
-				newevent->newstate = STATE_PREEMPTED;
-				newevent->process = currentproc;
-				rm_event_preempt(eventQ, currentproc);
-				put_event(eventQ, newevent);
-				preemptdebug = 1;
+				preemptdebug1 = proc->dynamic_priority > currentproc->dynamic_priority;
+				preemptdebug2 = scheduler->test_preempt(eventQ, currentproc, CURRENT_TIME);
+				if (preemptdebug1 && preemptdebug2 > 0)
+				{
+					newevent = new Event();
+					newevent->timestamp = CURRENT_TIME;
+					newevent->oldstate = STATE_RUNNING;
+					newevent->newstate = STATE_PREEMPTED;
+					newevent->process = currentproc;
+					rm_event_preempt(eventQ, currentproc);
+					put_event(eventQ, newevent);
+				}
 			}
 			proc->state = STATE_READY;
 			proc->state_ts = CURRENT_TIME;
 			scheduler->add_process(proc);
 			CALL_SCHEDULER = true;
 
-			if (debugparas.eflag == true&& fromstate == STATE_BLOCKED)
+			if (debugparas.eflag == true)
 			{
-				printf("%d %d %d: BLOCK -> READY\n", CURRENT_TIME, proc->pid, timeInPrevState);
+				if (fromstate == STATE_BLOCKED)
+				{
+					printf("%d %d %d: BLOCK -> READY\n", CURRENT_TIME, proc->pid, timeInPrevState);
+				}
+				else if (fromstate == STATE_CREATED)
+				{
+					printf("%d %d %d: CREATED -> READY\n", CURRENT_TIME, proc->pid, timeInPrevState);
+				}
+				if (currentproc != nullptr&&preemptdebug2>-1) {
+				printf("    --> PrioPreempt Cond1 = %d Cond2 = %d (%d) -- > ", preemptdebug1, preemptdebug2>0, preemptdebug2);
+				if (preemptdebug1 && preemptdebug2>0)
+				{
+					printf("YES\n");
+				}
+				else
+				{
+					printf("NO\n");
+				}
 			}
-			else if (debugparas.eflag == true && fromstate == STATE_CREATED)
-			{
-				printf("%d %d %d: CREATED -> READY\n", CURRENT_TIME, proc->pid, timeInPrevState);
 			}
-			if (currentproc != nullptr&&preemptdebug == 1)
-			{
-				preemptdebug = 0;
-				printf("    --> PrioPreempt   --> YES\n");
-			}
-			else if (currentproc != nullptr&&preemptdebug==0)
-			{
-				printf("    --> PrioPreempt   --> NO\n");
-			}
+			preemptdebug1 = false;
+			preemptdebug2 = -1;
 			break;
 		case STATE_PREEMPTED: 
 			// transition 5
@@ -724,9 +740,10 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 }
 
 int main(int argc, char* argv[]) {
-	string ss="E2:5";  //scheduled select
-	//int c;
 	Scheduler* scheduler = nullptr;
+	string ss = "E2:5";  //scheduled select
+	string f1 = "C:/xuexiziliao/OS/lab2_assign/input7";
+	string f2 = "C:/xuexiziliao/OS/lab2_assign/rfile";
 	/*
 	while ((c = getopt(argc, argv, "vtep")) != -1)
 	{
@@ -799,8 +816,7 @@ int main(int argc, char* argv[]) {
 		break;
 	}
 
-	string f1 = "F:/美国学习资料/OS/lab2/lab2_assign/input7";
-	string f2 = "F:/美国学习资料/OS/lab2/lab2_assign/rfile";
+
 	//string f1 = argv[1+0]; //optind
 	//string f2 = argv[2+0];
 
