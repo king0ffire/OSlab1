@@ -68,6 +68,7 @@ Process::Process()
 	state_ts = 0;
 	remainingtime = 0;
 	state = STATE_CREATED;
+	pid = 0;
 	remainingcpuburst = 0;
 }
 
@@ -86,7 +87,6 @@ public:
 private:
 
 };
-
 Event::Event()
 {
 	timestamp = 0;
@@ -94,7 +94,6 @@ Event::Event()
 	oldstate = 0;
 	newstate = 0;
 }
-
 Event::~Event()
 {
 }
@@ -123,6 +122,19 @@ void rm_event(list<Event*>& eventQ) {
 	eventQ.pop_front();
 	return;
 }
+
+void rm_event_preempt(list<Event*>& eventQ, Process* runningproc)  //assuming the runningproc is always exist only once in the Q
+{
+	for (list<Event*>::iterator it = eventQ.begin(); it != eventQ.end(); it++)
+	{
+		if ((*it)->process == runningproc)
+		{
+			eventQ.erase(it);
+			return;
+		}
+	}
+}
+
 class Scheduler
 {
 public:
@@ -138,11 +150,11 @@ public:
 private:
 
 };
-
 Scheduler::Scheduler()
 {
+	quantum = 0;
+	maxprio = 0;
 }
-
 Scheduler::~Scheduler()
 {
 }
@@ -370,7 +382,6 @@ PriorityScheduler::~PriorityScheduler()
 	delete[] activeQ;
 	delete[] expiredQ;
 }
-
 void PriorityScheduler::add_process(Process* p)
 {
 	if (p->dynamic_priority <= -1)
@@ -417,6 +428,86 @@ string PriorityScheduler::getname()
 	return "PRIO " + to_string(quantum);
 }
 
+class PREEPRIO:public Scheduler
+{
+public:
+	PREEPRIO();
+	PREEPRIO(int, int);
+	~PREEPRIO();
+	void add_process(Process* p);
+	Process* get_next_process();
+	bool test_preempt(Process* p, int curtime);
+	string getname();
+	queue<Process*>* activeQ;
+	queue<Process*>* expiredQ;
+private:
+
+};
+PREEPRIO::PREEPRIO()
+{
+	activeQ = nullptr;
+	expiredQ = nullptr;
+}
+PREEPRIO::PREEPRIO(int a, int b)
+{
+	quantum = a;
+	maxprio = b;
+	activeQ = new queue<Process*>[maxprio];
+	expiredQ = new queue<Process*>[maxprio];
+}
+PREEPRIO::~PREEPRIO()
+{
+	delete[] activeQ;
+	delete[] expiredQ;
+}
+void PREEPRIO::add_process(Process* p)
+{
+	if (p->dynamic_priority <= -1)
+	{
+		p->dynamic_priority = p->static_priority - 1;
+		expiredQ[p->dynamic_priority].push(p);
+	}
+	else
+	{
+		activeQ[p->dynamic_priority].push(p);
+	}
+}
+Process* PREEPRIO::get_next_process()
+{
+	for (int i = maxprio - 1; i >= 0; i--)
+	{
+		if (!activeQ[i].empty())
+		{
+			Process* temp = activeQ[i].front();
+			activeQ[i].pop();
+			return temp;
+		}
+	}
+	queue<Process*>* temp = activeQ;
+	activeQ = expiredQ;
+	expiredQ = temp;
+	for (int i = maxprio - 1; i >= 0; i--)
+	{
+		if (!activeQ[i].empty())
+		{
+			Process* temp = activeQ[i].front();
+			activeQ[i].pop();
+			return temp;
+		}
+	}
+	return nullptr;
+}
+bool PREEPRIO::test_preempt(Process* p, int curtime)
+{
+	return true;
+}
+string PREEPRIO::getname()
+{
+	return "PREPRIO " + to_string(quantum);
+}
+
+
+
 int myrandom(vector<int> &randvals,int &currentind, int randnumbers, int burst) { //return [1...burst] randnumber
 	if (currentind >= randnumbers) {
 		currentind = 0;
@@ -435,6 +526,7 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 	int time_iobusy = 0;
 	int time_iononbusy = 0;
 	int ionumbers = 0;
+	bool preemptdebug = 0;
 	while ((evt = get_event(eventQ))!=nullptr) {
 		rm_event(eventQ);
 		if (ionumbers > 0)
@@ -465,6 +557,17 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 				ionumbers--;
 			}
 
+			if (scheduler->test_preempt(proc, CURRENT_TIME)&&currentproc!=nullptr&&proc->dynamic_priority>currentproc->dynamic_priority)
+			{
+				newevent = new Event();
+				newevent->timestamp = CURRENT_TIME;
+				newevent->oldstate = STATE_RUNNING;
+				newevent->newstate = STATE_PREEMPTED;
+				newevent->process = currentproc;
+				rm_event_preempt(eventQ, currentproc);
+				put_event(eventQ, newevent);
+				preemptdebug = 1;
+			}
 			proc->state = STATE_READY;
 			proc->state_ts = CURRENT_TIME;
 			scheduler->add_process(proc);
@@ -477,6 +580,15 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 			else if (debugparas.eflag == true && fromstate == STATE_CREATED)
 			{
 				printf("%d %d %d: CREATED -> READY\n", CURRENT_TIME, proc->pid, timeInPrevState);
+			}
+			if (currentproc != nullptr&&preemptdebug == 1)
+			{
+				preemptdebug = 0;
+				printf("    --> PrioPreempt   --> YES\n");
+			}
+			else if (currentproc != nullptr&&preemptdebug==0)
+			{
+				printf("    --> PrioPreempt   --> NO\n");
 			}
 			break;
 		case STATE_PREEMPTED: 
@@ -491,10 +603,11 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 			{
 				printf("%d %d %d: RUNNG -> READY  cb=%d rem=%d prio=%d\n", CURRENT_TIME, proc->pid, timeInPrevState, proc->remainingcpuburst, proc->remainingtime, proc->dynamic_priority);
 			}
-			proc->dynamic_priority--;
 			time_cpubusy += timeInPrevState;
 			currentproc = nullptr;
 			
+			proc->dynamic_priority--;
+
 			scheduler->add_process(proc);
 			CALL_SCHEDULER = true;
 
@@ -522,11 +635,12 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 				newevent->newstate = STATE_PREEMPTED;
 				newevent->timestamp = CURRENT_TIME + scheduler->quantum;
 			}
-			else if (scheduler->test_preempt(proc, CURRENT_TIME))
+			/*else if (scheduler->test_preempt(proc, CURRENT_TIME))
 			{
+
 				newevent->newstate = STATE_PREEMPTED;
 				newevent->timestamp = CURRENT_TIME + cpuburst;
-			}
+			}*/
 			else
 			{
 				newevent->newstate = STATE_BLOCKED;
@@ -610,7 +724,7 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 }
 
 int main(int argc, char* argv[]) {
-	string ss="R2";  //scheduled select
+	string ss="E2:5";  //scheduled select
 	//int c;
 	Scheduler* scheduler = nullptr;
 	/*
@@ -678,7 +792,8 @@ int main(int argc, char* argv[]) {
 		break;
 	case'E':
 		//do PREE PRIO
-		//sscanf(ss.substr(2).c_str(), "%d:%d", &quantum, &maxprio);
+		sscanf(ss.substr(1).c_str(), "%d:%d", &quantum, &maxprio);
+		scheduler = new PREEPRIO(quantum, maxprio);
 		break;
 	default:
 		break;
