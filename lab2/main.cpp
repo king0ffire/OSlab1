@@ -752,7 +752,7 @@ int main(int argc, char* argv[]) {
 	ifstream randfile;
 	int quantum = DEFAULTQUANTUM;
 	int maxprio = DEFAULTMAXPRIO;
-	switch (ss[1])
+	switch (ss[2])
 	{
 	case'F':
 		//do FCFS
@@ -768,17 +768,17 @@ int main(int argc, char* argv[]) {
 		break;	
 	case'R':
 		//do RR
-		sscanf(ss.substr(2).c_str(), "%d", &quantum);
+		sscanf(ss.substr(3).c_str(), "%d", &quantum);
 		scheduler = new RR(quantum,maxprio);
 		break;
 	case'P':
 		//do PRIO
-		sscanf(ss.substr(2).c_str(), "%d:%d", &quantum, &maxprio);
+		sscanf(ss.substr(3).c_str(), "%d:%d", &quantum, &maxprio);
 		scheduler = new PriorityScheduler(quantum, maxprio);
 		break;
 	case'E':
 		//do PREE PRIO
-		sscanf(ss.substr(2).c_str(), "%d:%d", &quantum, &maxprio);
+		sscanf(ss.substr(3).c_str(), "%d:%d", &quantum, &maxprio);
 		scheduler = new PREEPRIO(quantum, maxprio);
 		break;
 	default:
@@ -805,12 +805,11 @@ int main(int argc, char* argv[]) {
 	getline(randfile, oneline);
 	sscanf(oneline.c_str(), "%d", &randmax);
 	int temp0;
-	getline(randfile, oneline);
-	while (!randfile.eof()) //read all into the vector
+	
+	while (getline(randfile, oneline)) //read all into the vector
 	{
 		sscanf(oneline.c_str(), "%d", &temp0);
 		randvals.push_back(temp0);
-		getline(randfile, oneline);
 	}
 	randfile.close();
 
