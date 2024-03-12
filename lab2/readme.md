@@ -5,7 +5,7 @@ My program is straightforward enough for graders. This Readme is in case that th
 
 Be sure run `module load gcc-9.2` first.
 
-Unzip the .zip and place `makefile` and `main.cpp` in `<mycodesrc>`.
+Unzip the `.zip` and place `makefile` and `main.cpp` in `<mycodesrc>`.
 
 Run `make` to get `sched`
 
@@ -19,23 +19,31 @@ Then you will find out that how perfect my program is.
 
 # Debug Method for myself
 
-There should be `input*` and ./runit.sh and ./gradeit.sh and rfile under current directory.
+There should be `input*` and `runit.sh` and `gradeit.sh` and `rfile` and `/profsrc` under current directory.
+
+## optional
 
 mkdir mysrc
 
 mkdir myout
 
+mkdir refout
+
 cd ./mysrc
 
 unzip ../qm2104.zip
 
+make 
+
 cd ../
 
-make refout
+chmod +x ./runit.sh 
 
+chmod +x ./gradeit.sh 
 
+chmod +x ./profsrc/sched
 
-
+## mandatory
 
 rm -rf ./myout/*
 
