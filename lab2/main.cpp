@@ -120,6 +120,7 @@ list<Event*>::iterator findeventiteratorbyprocess(list<Event*>& eventQ,Process* 
 			return it;
 		}
 	}
+	return eventQ.end();
 }
 Event* get_event(list<Event*>& eventQ) {
 	if (eventQ.empty()) return nullptr;
@@ -741,49 +742,17 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 
 int main(int argc, char* argv[]) {
 	Scheduler* scheduler = nullptr;
-	string ss = "E2:5";  //scheduled select
-	string f1 = "C:/xuexiziliao/OS/lab2_assign/input7";
-	string f2 = "C:/xuexiziliao/OS/lab2_assign/rfile";
-	/*
-	while ((c = getopt(argc, argv, "vtep")) != -1)
-	{
-		switch (c)
-		{
-		case 'v':
-			vflag = 1;
-			break;
-		case't':
-			tflag = 1;
-			break;
-		case'e':
-			eflag = 1;
-			break;
-		case'p':
-			pflag = 1;
-			break;
-		default:
-			if
-			sflag = 1;
-			ss = optarg;
-			break;
-			break;
-		}
-	}
-	*/
+	string ss = argv[1];  //scheduled select
+	string f1 = argv[2];
+	string f2 = argv[3];
 	Debugparas debugparas;
-	debugparas.eflag = true;
+	//debugparas.eflag = true;
 
 	ifstream inputfile;
 	ifstream randfile;
-	/*
-	if (argc- optind <= 1)
-	{
-		cout << "A input file is needed";
-		return 0;
-	}*/
 	int quantum = DEFAULTQUANTUM;
 	int maxprio = DEFAULTMAXPRIO;
-	switch (ss[0])
+	switch (ss[1])
 	{
 	case'F':
 		//do FCFS
@@ -799,26 +768,22 @@ int main(int argc, char* argv[]) {
 		break;	
 	case'R':
 		//do RR
-		sscanf(ss.substr(1).c_str(), "%d", &quantum);
+		sscanf(ss.substr(2).c_str(), "%d", &quantum);
 		scheduler = new RR(quantum,maxprio);
 		break;
 	case'P':
 		//do PRIO
-		sscanf(ss.substr(1).c_str(), "%d:%d", &quantum, &maxprio);
+		sscanf(ss.substr(2).c_str(), "%d:%d", &quantum, &maxprio);
 		scheduler = new PriorityScheduler(quantum, maxprio);
 		break;
 	case'E':
 		//do PREE PRIO
-		sscanf(ss.substr(1).c_str(), "%d:%d", &quantum, &maxprio);
+		sscanf(ss.substr(2).c_str(), "%d:%d", &quantum, &maxprio);
 		scheduler = new PREEPRIO(quantum, maxprio);
 		break;
 	default:
 		break;
 	}
-
-
-	//string f1 = argv[1+0]; //optind
-	//string f2 = argv[2+0];
 
 	inputfile.open(f1);
 	if (!inputfile.is_open())
@@ -847,6 +812,7 @@ int main(int argc, char* argv[]) {
 		randvals.push_back(temp0);
 		getline(randfile, oneline);
 	}
+	randfile.close();
 
 	list<Event*> eventQ;
 	vector<Process*> allprocess;
@@ -883,6 +849,7 @@ int main(int argc, char* argv[]) {
 		newevent->process = temp;
 		put_event(eventQ, newevent);
 	}
+	inputfile.close();
 	SimRes* res=Simulation(eventQ, randvals,randvalofs, randmax, scheduler,debugparas);
 
 	int totalturnaround = 0;
@@ -902,5 +869,6 @@ int main(int argc, char* argv[]) {
 	double averturnaround = totalturnaround / (double)num_processes;
 	double avercpuwaiting = totalcpuwaiting / (double) num_processes;
 	printf("SUM: %d %.2lf %.2lf %.2lf %.2lf %.3lf\n", res->finishtime, cpu_util, io_util,averturnaround, avercpuwaiting, throughput);
+
 	return 0;
 }
