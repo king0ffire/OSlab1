@@ -1,6 +1,6 @@
 ﻿#include <iostream>
 #include <fstream>
-//#include <unistd.h>
+#include <unistd.h>
 #include <string>
 #include <queue>
 #include <deque>
@@ -742,11 +742,35 @@ SimRes* Simulation(list<Event*> &eventQ,vector<int> &randvals,int &currentind,in
 
 int main(int argc, char* argv[]) {
 	Scheduler* scheduler = nullptr;
-	string ss = argv[1];  //scheduled select
-	string f1 = argv[2];
-	string f2 = argv[3];
+	//string ss = argv[1];  //scheduled select
+	//string f1 = argv[2];
+	//string f2 = argv[3];
 	Debugparas debugparas;
 	//debugparas.eflag = true;
+
+	string ss;  //scheduled select
+	string f1;
+	string f2;
+	int opt;
+	while ((opt = getopt(argc, argv, "s:")) != -1)
+	{
+		switch (opt) {
+		case 's': {
+			ss = string("-") + (char)opt + string(optarg);
+			break;
+		}
+		default:
+			cout << "scheduler not exist";
+			return 0;
+		}
+	}
+	if (argc - optind < 2)
+	{
+		cout << "files not exist";
+		return 0;
+	}
+	f1 = argv[optind + 0];
+	f2 = argv[optind + 1];
 
 	ifstream inputfile;
 	ifstream randfile;
