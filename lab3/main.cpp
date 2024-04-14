@@ -73,7 +73,7 @@ public:
 class Pager {
 public:
 	int index;
-	virtual int select_victim_frame(frame_t* frame_table, int frame_numbers) = 0; // virtual base class
+	virtual int select_victim_frame(frame_t* frame_table, int frame_numbers,vector<Process*> &process_table) = 0; // virtual base class
 	Pager() :index(0)
 	{
 
@@ -82,15 +82,36 @@ public:
 
 class FIFO :public Pager {
 	// 通过 Pager 继承
-	int select_victim_frame(frame_t* frame_table, int frame_numbers) override
+	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*> &process_table) override
 	{
 		int j = index;
 		for (int i = 0; i < frame_numbers; i++)
 		{
-			if (true && frame_table[j + i].process != -1) //always true, and the for loop only run once
+			if (true) //always true, and the for loop only run once
 			{
 				index = (index + i + 1) % frame_numbers;
 				return (j + i) % frame_numbers;
+			}
+		}
+	}
+};
+
+class CLOCK :public Pager {
+	// 通过 Pager 继承
+	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*>& process_table) override
+	{
+		int j = index;
+		while (true)
+		{
+			if (process_table[frame_table[j].process]->page_table[frame_table[j].vpage].REFERENCED)
+			{
+				process_table[frame_table[j].process]->page_table[frame_table[j].vpage].REFERENCED = 0;
+				j = (j + 1) % frame_numbers;
+			}
+			else
+			{
+				index = (j + 1) % frame_numbers;
+				return j;
 			}
 		}
 	}
@@ -109,9 +130,9 @@ int allocate_frame_from_free_list(frame_t* frame_table, deque<int>& free_pool)
 		return temp;
 	}
 }
-int get_frame(frame_t* frame_table, int frame_numbers, deque<int>& free_pool, Pager* the_pager) {
+int get_frame(frame_t* frame_table, int frame_numbers, deque<int>& free_pool, Pager* the_pager, vector<Process*>& process_table) {
 	int frame = allocate_frame_from_free_list(frame_table, free_pool);
-	if (frame == -1) frame = the_pager->select_victim_frame(frame_table, frame_numbers);
+	if (frame == -1) frame = the_pager->select_victim_frame(frame_table, frame_numbers, process_table);
 	return frame;
 }
 
@@ -189,10 +210,10 @@ int main(int argc, char* argv[]) {
 	o = argv[3];
 	file1 = argv[4];
 	file2 = argv[5];*/
-	f = "-f16";
-	a = "-aF";
+	f = "-f32";
+	a = "-aC";
 	o = "-oOSPF";
-	file1 = "F:/美国学习资料/OS/lab3/lab3_assign/in1";
+	file1 = "F:/美国学习资料/OS/lab3/lab3_assign/in11";
 	file2 = "F:/美国学习资料/OS/lab3/lab3_assign/rfile";
 
 	//以上进linux改
@@ -246,10 +267,11 @@ int main(int argc, char* argv[]) {
 	case'F':
 		pager = new FIFO();
 		break;
+	case'C':
+		pager = new CLOCK();
+		break;
 		/*
-		case'L':
-			pager = new Random();
-			break;
+
 		case'S':
 			pager = new Clock();
 			break;
@@ -274,10 +296,6 @@ int main(int argc, char* argv[]) {
 	}
 	randfile.close();
 
-	int temp1;
-	int temp2;
-	int temp3;
-	int temp4;
 	int number_processes = 0;
 	int number_pages = 0;
 	frame_t frame_table[MAX_FRAMES];
@@ -323,7 +341,6 @@ int main(int argc, char* argv[]) {
 		instruction_count++;
 		if (operation[0] == 'c')
 		{
-
 			total_costs += 130;
 			ctx_switches++;
 			current_process = process_table[vpage];
@@ -331,11 +348,44 @@ int main(int argc, char* argv[]) {
 		}
 		if (operation[0] == 'e')
 		{
+			for (int i = 0; i < MAX_VPAGES; i++)
+			{
+
+				if (current_process->page_table[i].PRESENT)
+				{
+					if (outputO)printf(" UNMAP %d:%d\n", current_process->pid,i); //frame_table[newframe].process is the victim process
+					total_costs += 410;
+					current_process->unmaps++;
+
+					//-> figure out if/what to do with old frame if it was mapped
+					if (current_process->page_table[i].MODIFIED == 1)
+					{
+						if (current_process->page_table[i].FILEMAPPED)
+						{
+							if (outputO)printf(" FOUT\n");
+							total_costs += 2800;
+							current_process->fouts++;
+						}
+					}
+					free_pool.push_back(current_process->page_table[i].FRAME_NUMBER);
+					frame_table[current_process->page_table[i].FRAME_NUMBER].process = -1;
+					frame_table[current_process->page_table[i].FRAME_NUMBER].vpage = -1;
+					frame_table[current_process->page_table[i].FRAME_NUMBER].locked = 0;
+					frame_table[current_process->page_table[i].FRAME_NUMBER].ref_count = 0;
+				}
+				current_process->page_table[i].MODIFIED = 0;
+				current_process->page_table[i].REFERENCED = 0;
+				current_process->page_table[i].PAGEDOUT = 0;
+				current_process->page_table[i].PRESENT = 0;//its entry in the owning process’s page_table must be removed(“UNMAP”)
+			}
 			total_costs += 1230;
 			process_exits++;
 			continue;
 		}
 		// handle special case of “c” and “e” instruction
+		
+		total_costs += 1;//w and r instruction cost+1
+
 		// now the real instructions for read and write
 		PTE_t* pte = &current_process->page_table[vpage];
 		if (!pte->PRESENT) {
@@ -358,7 +408,7 @@ int main(int argc, char* argv[]) {
 					pte->FILEMAPPED = current_process->vmas[VMAindex]->file_mapped;
 				}
 			}
-			int newframe = get_frame(frame_table, frame_numbers, free_pool, pager); //How about return frame number
+			int newframe = get_frame(frame_table, frame_numbers, free_pool, pager, process_table); //How about return frame number
 			if (frame_table[newframe].process != -1)
 			{
 				if (outputO)printf(" UNMAP %d:%d\n", frame_table[newframe].process, frame_table[newframe].vpage); //frame_table[newframe].process is the victim process
@@ -390,8 +440,6 @@ int main(int argc, char* argv[]) {
 			// see general outline in MM-slides under Lab3 header and writeup below
 			// see whether and how to bring in the content of the access page.
 
-
-
 			if (pte->FILEMAPPED)
 			{
 				if (outputO)printf(" FIN\n");
@@ -421,16 +469,13 @@ int main(int argc, char* argv[]) {
 			current_process->maps++;
 		}
 		// now the page is definitely present // check write protection
-		if (current_process->page_table[vpage].WRITE_PROTECT == 1 && operation[0] == 'r')
+		if (current_process->page_table[vpage].WRITE_PROTECT == 1 && operation[0] == 'w')
 		{
 			printf(" SEGPROT\n");
 			total_costs += 410;
 			current_process->segprot++;
-			current_process->page_table[vpage].REFERENCED = 1;
-			continue;
-		}
-		// simulate instruction execution by hardware by updating the R/M PTE bits
-		if (operation[0] == 'r')
+			pte->REFERENCED = 1;
+		}else if (operation[0] == 'r')
 		{
 			pte->REFERENCED = 1;
 		}
@@ -439,7 +484,6 @@ int main(int argc, char* argv[]) {
 			pte->REFERENCED = 1;
 			pte->MODIFIED = 1;
 		}
-		total_costs += 1;
 	}
 
 	inputfile.close();
@@ -456,7 +500,7 @@ int main(int argc, char* argv[]) {
 				{
 					printf(" #");
 				}
-				else if (!process_table[i]->page_table[j].PRESENT && !process_table[i]->page_table[j].MODIFIED)
+				else if (!process_table[i]->page_table[j].PRESENT && !process_table[i]->page_table[j].PAGEDOUT)
 				{
 					printf(" *");
 				}
