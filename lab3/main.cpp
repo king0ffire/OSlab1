@@ -7,6 +7,7 @@
 #include <vector>
 #include <stack>
 #include <cstdint>
+#include <unistd.h>
 #pragma warning(disable : 4996)
 
 #define MAX_VPAGES 64
@@ -86,14 +87,9 @@ class FIFO :public Pager {
 	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*> &process_table, vector<int>& randvals, int& currentind, int randnumbers, int instruction_number) override
 	{
 		int j = index;
-		for (int i = 0; i < frame_numbers; i++)
-		{
-			if (true) //always true, and the for loop only run once
-			{
-				index = (index + i + 1) % frame_numbers;
-				return (j + i) % frame_numbers;
-			}
-		}
+		index = (index + 1) % frame_numbers;
+		return j;
+
 	}
 
 	// 通过 Pager 继承
@@ -214,7 +210,7 @@ public:
 		}
 		return victim;
 	}
-	NRU():instr_time(0){}
+	NRU():instr_time(-1){}
 
 	int resetage(int age) override
 	{
@@ -337,7 +333,7 @@ bool get_next_instruction(ifstream& file, string* command, int* id)
 	string oneline;
 	if (!get_valid_line(file, oneline)) return false;
 	char ch[3];
-	sscanf(oneline.c_str(), "%s %d", &ch, id);
+	sscanf(oneline.c_str(), "%s %d", ch, id);
 	*command = ch;
 	return true;
 }
@@ -355,8 +351,8 @@ int main(int argc, char* argv[]) {
 	bool outputF = false;
 	bool outputS = false;
 	int frame_numbers = 0;
-	/*
-	* while ((opt = getopt(argc, argv, "f:a:o:")) != -1) {
+	
+	 while ((opt = getopt(argc, argv, "f:a:o:")) != -1) {
 		switch (opt) {
 			case 'f':
 				f = string("-") + (char)opt + string(optarg);
@@ -372,18 +368,15 @@ int main(int argc, char* argv[]) {
 				return 1;
 		}
 	}
-
-	f = argv[1];
-	a = argv[2];
-	o = argv[3];
-	file1 = argv[4];
-	file2 = argv[5];*/
-	f = "-f32";
-	a = "-aW";
+	file1 = argv[optind];
+	file2 = argv[optind+1];
+	/*
+	f = "-f16";
+	a = "-ae";
 	o = "-oOSPF";
-	file1 = "F:/美国学习资料/OS/lab3/lab3_assign/in11";
+	file1 = "F:/美国学习资料/OS/lab3/lab3_assign/in3";
 	file2 = "F:/美国学习资料/OS/lab3/lab3_assign/rfile";
-
+	*/
 	//以上进linux改
 
 	frame_numbers = stoi(f.substr(2));
@@ -432,22 +425,22 @@ int main(int argc, char* argv[]) {
 
 	switch (a[2])
 	{
-	case'F':
+	case'f':
 		pager = new FIFO();
 		break;
-	case'C':
+	case'c':
 		pager = new CLOCK();
 		break;
-	case'R':
+	case'r':
 		pager = new RANDOM();
 		break;
-	case'E':
+	case'e':
 		pager = new NRU();
 		break;
-	case'A':
+	case'a':
 		pager = new AGING();
 		break;
-	case'W':
+	case'w':
 		pager = new WORKINGSET();
 		break;
 	default:
@@ -503,7 +496,7 @@ int main(int argc, char* argv[]) {
 	unsigned long long total_costs = 0;
 	//before this, all pte bits should be zero
 	while (get_next_instruction(inputfile, &operation, &vpage)) {
-		if (outputO)printf("%d: ==> %c %d\n", instruction_count, operation[0], vpage);
+		if (outputO)printf("%ld: ==> %c %d\n", instruction_count, operation[0], vpage);
 		instruction_count++;
 		if (operation[0] == 'c')
 		{
@@ -582,7 +575,7 @@ int main(int argc, char* argv[]) {
 				//-> figure out if/what to do with old frame if it was mapped
 				if (process_table[frame_table[newframe].process]->page_table[frame_table[newframe].vpage].MODIFIED == 1)
 				{
-					process_table[frame_table[newframe].process]->page_table[frame_table[newframe].vpage].PAGEDOUT = 1;
+
 					if (process_table[frame_table[newframe].process]->page_table[frame_table[newframe].vpage].FILEMAPPED)
 					{
 						if (outputO)printf(" FOUT\n");
@@ -591,11 +584,15 @@ int main(int argc, char* argv[]) {
 					}
 					else
 					{
+						process_table[frame_table[newframe].process]->page_table[frame_table[newframe].vpage].PAGEDOUT = 1;
 						if (outputO)printf(" OUT\n");
 						total_costs += 2750;
 						process_table[frame_table[newframe].process]->outs++;
 					}
 				}
+
+
+
 				process_table[frame_table[newframe].process]->page_table[frame_table[newframe].vpage].PRESENT = 0;//its entry in the owning process’s page_table must be removed(“UNMAP”)
 				process_table[frame_table[newframe].process]->page_table[frame_table[newframe].vpage].MODIFIED = 0;
 				process_table[frame_table[newframe].process]->page_table[frame_table[newframe].vpage].REFERENCED = 0;
