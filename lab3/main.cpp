@@ -6,6 +6,7 @@
 #include <list>
 #include <vector>
 #include <stack>
+#include <cstdint>
 #pragma warning(disable : 4996)
 
 #define MAX_VPAGES 64
@@ -29,9 +30,8 @@ struct frame_t
 {
 	int process;
 	int vpage;
-	int ref_count;
-	int locked;
-	frame_t() :process(-1), vpage(-1), ref_count(0), locked(0) {
+	uint32_t age;
+	frame_t() :process(-1), vpage(-1),age(0) {
 
 	}
 };
@@ -73,7 +73,8 @@ public:
 class Pager {
 public:
 	int index;
-	virtual int select_victim_frame(frame_t* frame_table, int frame_numbers,vector<Process*> &process_table) = 0; // virtual base class
+	virtual int select_victim_frame(frame_t* frame_table, int frame_numbers,vector<Process*> &process_table, vector<int>& randvals, int& currentind, int randnumbers, int instruction_number) = 0; // virtual base class
+	virtual int resetage(int age) = 0;
 	Pager() :index(0)
 	{
 
@@ -82,7 +83,7 @@ public:
 
 class FIFO :public Pager {
 	// 通过 Pager 继承
-	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*> &process_table) override
+	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*> &process_table, vector<int>& randvals, int& currentind, int randnumbers, int instruction_number) override
 	{
 		int j = index;
 		for (int i = 0; i < frame_numbers; i++)
@@ -94,11 +95,42 @@ class FIFO :public Pager {
 			}
 		}
 	}
+
+	// 通过 Pager 继承
+	int resetage(int age) override
+	{
+		return 0;
+	}
+};
+
+int myrandom(vector<int>& randvals, int& currentind, int randnumbers, int burst) { //return [0..burst-1] randnumber
+	if (currentind >= randnumbers) {
+		currentind = 0;
+	}
+	int res = randvals[currentind] % burst;
+	currentind++;
+	return res;
+}
+
+
+class RANDOM :public Pager {
+	// 通过 Pager 继承
+	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*>& process_table, vector<int>& randvals, int& currentind, int randnumbers, int instruction_number) override
+	{
+		int randpage = myrandom(randvals, currentind, randnumbers, frame_numbers);
+		return randpage;
+	}
+
+	// 通过 Pager 继承
+	int resetage(int age) override
+	{
+		return 0;
+	}
 };
 
 class CLOCK :public Pager {
 	// 通过 Pager 继承
-	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*>& process_table) override
+	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*>& process_table, vector<int>& randvals, int& currentind, int randnumbers, int instruction_number) override
 	{
 		int j = index;
 		while (true)
@@ -115,6 +147,142 @@ class CLOCK :public Pager {
 			}
 		}
 	}
+
+	// 通过 Pager 继承
+	int resetage(int age) override
+	{
+		return 0;
+	}
+};
+
+class NRU :public Pager {
+public:
+	// 通过 Pager 继承
+	// Use the index as time counter
+	int instr_time;
+	int scanthevictim(frame_t* frame_table, int frame_numbers, vector<Process*>& process_table)
+	{
+		//int class0=-1;
+		int class1 = -1;
+		int class2 = -1;
+		int class3 = -1;
+		for (int i = 0; i < frame_numbers; i++)
+		{
+			int sum = process_table[frame_table[(i+index)%frame_numbers].process]->page_table[frame_table[(i + index) % frame_numbers].vpage].REFERENCED * 2 
+				+ process_table[frame_table[(i+index) % frame_numbers].process]->page_table[frame_table[(i + index) % frame_numbers].vpage].MODIFIED;
+			if (sum==0)
+			{
+				return (i + index) % frame_numbers;
+			}
+			if (class1 == -1)
+			{
+				if (sum==1)
+				{
+					class1 = (i + index) % frame_numbers;
+				}
+			}
+			if (class2 == -1)
+			{
+				if (sum==2)
+				{
+					class2 = (i + index) % frame_numbers;
+				}
+			}
+			if (class3 == -1)
+			{
+				if (sum==3)
+				{
+					class3 = (i + index) % frame_numbers;
+				}
+			}
+		}
+		if (class1 != -1)return class1;
+		if (class2 != -1)return class2;
+		return class3;
+	}
+	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*>& process_table, vector<int>& randvals, int& currentind, int randnumbers,int instruction_number) override
+	{
+		int victim = scanthevictim(frame_table, frame_numbers, process_table);
+		index = (victim + 1) % frame_numbers;
+		if (instruction_number - instr_time >= 48)
+		{
+			instr_time = instruction_number;
+			for (int i = 0; i < frame_numbers; i++)
+			{
+				process_table[frame_table[i].process]->page_table[frame_table[i].vpage].REFERENCED = 0;
+			}
+		}
+		return victim;
+	}
+	NRU():instr_time(0){}
+
+	int resetage(int age) override
+	{
+		return 0;
+	}
+};
+
+class AGING :public Pager {
+public:
+	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*>& process_table, vector<int>& randvals, int& currentind, int randnumbers, int instruction_number) override
+	{
+		int minindex = index;
+
+		for (int i = 0; i < frame_numbers; i++) //i=0 for aging safety
+		{
+			frame_table[(i + index) % frame_numbers].age = frame_table[(i + index) % frame_numbers].age >> 1;
+			if (process_table[frame_table[(i + index) % frame_numbers].process]->page_table[frame_table[(i + index) % frame_numbers].vpage].REFERENCED)
+			{
+				frame_table[(i + index) % frame_numbers].age = (frame_table[(i + index) % frame_numbers].age | 0x80000000);
+				process_table[frame_table[(i + index) % frame_numbers].process]->page_table[frame_table[(i + index) % frame_numbers].vpage].REFERENCED = 0;
+			}
+			if (frame_table[(i + index) % frame_numbers].age < frame_table[minindex].age)
+			{
+				minindex = (i + index) % frame_numbers;
+			}
+		}
+		index = (minindex + 1) % frame_numbers;
+		return minindex;
+	}
+
+	// 通过 Pager 继承
+	int resetage(int age) override
+	{
+		return 0;
+	}
+};
+
+class WORKINGSET :public Pager {
+public:
+	int select_victim_frame(frame_t* frame_table, int frame_numbers, vector<Process*>& process_table, vector<int>& randvals, int& currentind, int randnumbers, int instruction_number) override
+	{
+		int minindex = index;
+
+		for (int i = 0; i < frame_numbers; i++) //i=0 for aging safety
+		{
+			if (process_table[frame_table[(i + index) % frame_numbers].process]->page_table[frame_table[(i + index) % frame_numbers].vpage].REFERENCED)
+			{
+				frame_table[(i + index) % frame_numbers].age = instruction_number;
+				process_table[frame_table[(i + index) % frame_numbers].process]->page_table[frame_table[(i + index) % frame_numbers].vpage].REFERENCED = 0;
+			}
+			if (instruction_number - frame_table[(i + index) % frame_numbers].age > 49)
+			{
+				minindex = (i + index) % frame_numbers;
+				break;
+			}
+			if (frame_table[(i + index) % frame_numbers].age < frame_table[minindex].age)
+			{
+				minindex= (i + index) % frame_numbers;
+			}
+		}
+		index = (minindex + 1) % frame_numbers;
+		return minindex;
+	}
+
+	int resetage(int age) override
+	{
+		return age;
+	}
 };
 
 int allocate_frame_from_free_list(frame_t* frame_table, deque<int>& free_pool)
@@ -130,9 +298,9 @@ int allocate_frame_from_free_list(frame_t* frame_table, deque<int>& free_pool)
 		return temp;
 	}
 }
-int get_frame(frame_t* frame_table, int frame_numbers, deque<int>& free_pool, Pager* the_pager, vector<Process*>& process_table) {
+int get_frame(frame_t* frame_table, int frame_numbers, deque<int>& free_pool, Pager* the_pager, vector<Process*>& process_table, vector<int>& randvals, int& currentind, int randnumbers,int instruction_number) {
 	int frame = allocate_frame_from_free_list(frame_table, free_pool);
-	if (frame == -1) frame = the_pager->select_victim_frame(frame_table, frame_numbers, process_table);
+	if (frame == -1) frame = the_pager->select_victim_frame(frame_table, frame_numbers, process_table, randvals, currentind, randnumbers, instruction_number);
 	return frame;
 }
 
@@ -211,7 +379,7 @@ int main(int argc, char* argv[]) {
 	file1 = argv[4];
 	file2 = argv[5];*/
 	f = "-f32";
-	a = "-aC";
+	a = "-aW";
 	o = "-oOSPF";
 	file1 = "F:/美国学习资料/OS/lab3/lab3_assign/in11";
 	file2 = "F:/美国学习资料/OS/lab3/lab3_assign/rfile";
@@ -270,21 +438,18 @@ int main(int argc, char* argv[]) {
 	case'C':
 		pager = new CLOCK();
 		break;
-		/*
-
-		case'S':
-			pager = new Clock();
-			break;
-		case'R':
-			pager = new NRU();
-			break;
-		case'P':
-			pager = new Aging();
-			break;
-		case'E':
-			pager = new Working_Set();
-			break;
-			*/
+	case'R':
+		pager = new RANDOM();
+		break;
+	case'E':
+		pager = new NRU();
+		break;
+	case'A':
+		pager = new AGING();
+		break;
+	case'W':
+		pager = new WORKINGSET();
+		break;
 	default:
 		return 0; //very brute
 	}
@@ -331,6 +496,7 @@ int main(int argc, char* argv[]) {
 	string operation;
 	int vpage;
 	Process* current_process = nullptr;
+	int currentrandindex = 0;
 	unsigned long instruction_count = 0;
 	unsigned long ctx_switches = 0;
 	unsigned long process_exits = 0;
@@ -348,9 +514,9 @@ int main(int argc, char* argv[]) {
 		}
 		if (operation[0] == 'e')
 		{
+			printf("EXIT current process %d\n", current_process->pid);
 			for (int i = 0; i < MAX_VPAGES; i++)
 			{
-
 				if (current_process->page_table[i].PRESENT)
 				{
 					if (outputO)printf(" UNMAP %d:%d\n", current_process->pid,i); //frame_table[newframe].process is the victim process
@@ -370,8 +536,6 @@ int main(int argc, char* argv[]) {
 					free_pool.push_back(current_process->page_table[i].FRAME_NUMBER);
 					frame_table[current_process->page_table[i].FRAME_NUMBER].process = -1;
 					frame_table[current_process->page_table[i].FRAME_NUMBER].vpage = -1;
-					frame_table[current_process->page_table[i].FRAME_NUMBER].locked = 0;
-					frame_table[current_process->page_table[i].FRAME_NUMBER].ref_count = 0;
 				}
 				current_process->page_table[i].MODIFIED = 0;
 				current_process->page_table[i].REFERENCED = 0;
@@ -408,7 +572,7 @@ int main(int argc, char* argv[]) {
 					pte->FILEMAPPED = current_process->vmas[VMAindex]->file_mapped;
 				}
 			}
-			int newframe = get_frame(frame_table, frame_numbers, free_pool, pager, process_table); //How about return frame number
+			int newframe = get_frame(frame_table, frame_numbers, free_pool, pager, process_table, randvals, currentrandindex, randmax, instruction_count-1); //How about return frame number
 			if (frame_table[newframe].process != -1)
 			{
 				if (outputO)printf(" UNMAP %d:%d\n", frame_table[newframe].process, frame_table[newframe].vpage); //frame_table[newframe].process is the victim process
@@ -463,6 +627,7 @@ int main(int argc, char* argv[]) {
 			frame_table[newframe].process = current_process->pid; //frame reverse map to pte
 			frame_table[newframe].vpage = vpage;
 			//frame_table[newframe].ref_count = 0;
+			frame_table[newframe].age = pager->resetage(instruction_count-1);
 			pte->PRESENT = 1;
 			if (outputO)printf(" MAP %d\n", newframe);
 			total_costs += 350;
