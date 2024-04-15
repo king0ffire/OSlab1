@@ -7,9 +7,9 @@ Be sure run `module load gcc-9.2` first.
 
 Unzip the `.zip` and place `makefile` and `main.cpp` in `<mycodesrc>`.
 
-Run `make` to get `sched`
+Run `make` to get `mmu`
 
-`./runit.sh <outputdir> ./<mycodesrc>/sched`
+`./runit.sh <outputdir> ./<mycodesrc>/mmu`
 
 `./gradeit.sh <your_reference_dir> <outputdir_from_last_command_above>`
 
@@ -64,7 +64,7 @@ mkdir refout
 
 cd ./myprog
 
-unzip ../qm2104.zip
+unzip ../lab3.zip
 
 make 
 
@@ -74,7 +74,7 @@ chmod +x ./runit.sh
 
 chmod +x ./gradeit.sh 
 
-chmod +x ./profsrc/sched
+chmod +x ./refprog/mmu
 
 ## mandatory  on linserv
 
@@ -82,14 +82,14 @@ rm -rf ./myout/*
 
 rm -rf ./refout/*
 
-cd ./mysrc
+cd ./myprog
 
 make
 
 cd ../
 
-./runit.sh ./myout ./mysrc/sched
+./runit.sh ./myout ./myprog/mmu
 
-./runit.sh ./refout ./profsrc/sched
+./runit.sh ./refout ./refprog/mmu
 
 ./gradeit.sh ./refout ./myout
